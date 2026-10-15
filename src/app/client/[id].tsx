@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import { TTD } from '../../lib/money';
 import { supabase } from '../../lib/supabase';
@@ -14,13 +15,21 @@ export default function ClientProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [c, setC] = useState<Client | null>(null);
   const [visits, setVisits] = useState<AppointmentBalance[]>([]);
+  const [loadError, setLoadError] = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    supabase.from('clients').select('*').eq('id', id).single().then(({ data }) => setC(data as Client));
-    supabase.from('appointment_balances').select('*').eq('client_id', id).order('starts_at', { ascending: false })
-      .then(({ data }) => setVisits((data as AppointmentBalance[]) ?? []));
-  }, [id]));
+  const load = useCallback(async () => {
+    const [cr, vr] = await Promise.all([
+      supabase.from('clients').select('*').eq('id', id).single(),
+      supabase.from('appointment_balances').select('*').eq('client_id', id).order('starts_at', { ascending: false }),
+    ]);
+    if (cr.error || vr.error) return setLoadError(true);
+    setLoadError(false);
+    setC(cr.data as Client);
+    setVisits((vr.data as AppointmentBalance[]) ?? []);
+  }, [id]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  if (loadError) return <Screen><LoadError onRetry={load} /></Screen>;
   if (!c) return null;
   const done = visits.filter((v) => v.status === 'completed');
   const spent = visits.reduce((t, v) => t + Number(v.paid), 0);
@@ -30,7 +39,9 @@ export default function ClientProfile() {
     Alert.alert('Delete client?', 'This also deletes their appointments.', [
       { text: 'Cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        await supabase.from('clients').delete().eq('id', id); router.back(); } },
+        const { error } = await supabase.from('clients').delete().eq('id', id);
+        if (error) return Alert.alert('Delete failed', error.message);
+        router.back(); } },
     ]);
   }
 

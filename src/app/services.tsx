@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import Screen from '../components/Screen';
+import LoadError from '../components/LoadError';
 import PasscodePrompt from '../components/PasscodePrompt';
 import { supabase } from '../lib/supabase';
 import { TTD } from '../lib/money';
@@ -15,10 +16,13 @@ export default function Services() {
   const [unlocked, setUnlocked] = useState(false);
   const [asking, setAsking] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('services').select('*').order('category').order('name');
-    if (error) Alert.alert('Could not load', error.message); else setItems(data as Service[]);
+    if (error) return setLoadError(true);
+    setLoadError(false);
+    setItems(data as Service[]);
   }, []);
 
   // Reload on open; re-lock on leaving
@@ -53,6 +57,7 @@ export default function Services() {
           {unlocked ? '+ Add service' : '🔒 Edit menu'}
         </Text>
       </Pressable>
+      {loadError && <LoadError onRetry={load} />}
 
       {Object.entries(groups).map(([cat, list]) => (
         <View key={cat} style={{ gap: 6 }}>
@@ -71,7 +76,7 @@ export default function Services() {
           ))}
         </View>
       ))}
-      {visible.length === 0 && <Text style={st.sub}>No services yet. Tap Edit menu to add your first.</Text>}
+      {visible.length === 0 && !loadError && <Text style={st.sub}>No services yet. Tap Edit menu to add your first.</Text>}
 
       <PasscodePrompt visible={asking} onCancel={() => setAsking(false)}
         onSuccess={() => { setAsking(false); setUnlocked(true); }} />

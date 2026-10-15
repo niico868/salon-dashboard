@@ -17,44 +17,43 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-  if (!session) return;
+    if (!session) return;
     setupNotifications()
-    .then((ok) => ok && syncReminders())
-    .catch((e) => console.warn('Reminders not set up:', e?.message));
+      .then((ok) => { if (ok) return syncReminders(); })
+      .catch((e) => console.warn('Reminders not set up:', e?.message));
 
-  // Re-sync whenever the app comes back to the front
+    // Re-sync whenever the app comes back to the front
     const appSub = AppState.addEventListener('change', (st) => {
-    if (st === 'active') syncReminders().catch(() => {});
-  });
+      if (st === 'active') syncReminders().catch(() => {});
+    });
 
-  // Tapping a notification opens its screen
-  const open = (r: Notifications.NotificationResponse | null) => {
-    const url = r?.notification.request.content.data?.url as string | undefined;
-    if (url) router.push(url as any);
-  };
-  Notifications.getLastNotificationResponseAsync().then(open);   // app was closed
-  const tapSub = Notifications.addNotificationResponseReceivedListener(open);  // app was open
+    // Tapping a notification opens its screen
+    const open = (r: Notifications.NotificationResponse | null) => {
+      const url = r?.notification.request.content.data?.url as string | undefined;
+      if (url) router.push(url as any);
+    };
+    Notifications.getLastNotificationResponseAsync().then(open);   // app was closed
+    const tapSub = Notifications.addNotificationResponseReceivedListener(open);  // app was open
 
-  return () => { appSub.remove(); tapSub.remove(); };
-}, [session]);
+    return () => { appSub.remove(); tapSub.remove(); };
+  }, [session]);
 
   if (!ready) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator /></View>;
 
-  // Add more screens here as you build them (services, client/[id], appointment/new, ...)
   return (
     <Stack>
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="services" options={{ title: 'Service menu' }} />
+        <Stack.Screen name="client/[id]" options={{ title: 'Client' }} />
+        <Stack.Screen name="client/new" options={{ title: 'Client details', presentation: 'modal' }} />
+        <Stack.Screen name="appointment/[id]" options={{ title: 'Appointment' }} />
+        <Stack.Screen name="appointment/new" options={{ title: 'Book appointment', presentation: 'modal' }} />
+        <Stack.Screen name="payment/new" options={{ title: 'Payment', presentation: 'modal' }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
       </Stack.Protected>
-      <Stack.Screen name="client/[id]" options={{ title: 'Client' }} />
-        <Stack.Screen name="client/new" options={{ title: 'Client details', presentation: 'modal' }} />
-            <Stack.Screen name="appointment/[id]" options={{ title: 'Appointment' }} />
-        <Stack.Screen name="appointment/new" options={{ title: 'Book appointment', presentation: 'modal' }} />
-      <Stack.Screen name="payment/new" options={{ title: 'Payment', presentation: 'modal' }} />
     </Stack>
   );
 }

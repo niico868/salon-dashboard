@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { TTD } from '../money';
 import { rangeFor, shift } from '../sales';
 

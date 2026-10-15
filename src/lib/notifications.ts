@@ -43,16 +43,18 @@ export async function cancelAppointmentReminder(id: string) {
 
 // Rebuild everything for the next 7 days. Called when the app opens or comes back to the front.
 export async function syncReminders() {
-  await Notifications.cancelAllScheduledNotificationsAsync();
   const now = new Date();
   const end = addDays(startOfDay(now), 7);
 
-  const [{ data: appts }, { data: clients }] = await Promise.all([
+  const [{ data: appts, error: apptsError }, { data: clients, error: clientsError }] = await Promise.all([
     supabase.from('appointment_balances').select('id, client_name, service_name, starts_at')
       .eq('status', 'booked').gte('starts_at', now.toISOString()).lt('starts_at', end.toISOString()),
     supabase.from('clients').select('follow_up_date').not('follow_up_date', 'is', null)
       .lte('follow_up_date', format(end, 'yyyy-MM-dd')),
   ]);
+  // Offline? Keep the reminders already scheduled rather than wiping them
+  if (apptsError || clientsError) return;
+  await Notifications.cancelAllScheduledNotificationsAsync();
 
   for (const a of appts ?? []) {
     await scheduleAppointmentReminder(a.id, a.client_name, a.service_name, new Date(a.starts_at));

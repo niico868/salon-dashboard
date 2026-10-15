@@ -1,7 +1,8 @@
 import { addWeeks, format } from 'date-fns';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import { supabase } from '../../lib/supabase';
 
@@ -11,13 +12,17 @@ const blank = { full_name: '', phone: '', email: '', birthday: '', preferences: 
 export default function ClientForm() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [f, setF] = useState(blank);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!id) return;
-    supabase.from('clients').select('*').eq('id', id).single().then(({ data }) => {
+    supabase.from('clients').select('*').eq('id', id).single().then(({ data, error }) => {
+      if (error) return setLoadError(true);
+      setLoadError(false);
       if (data) setF(Object.fromEntries(Object.keys(blank).map((k) => [k, (data as any)[k] ?? ''])) as typeof blank);
     });
   }, [id]);
+  useEffect(load, [load]);
 
   const set = (k: keyof typeof blank) => (v: string) => setF({ ...f, [k]: v });
   const followIn = (w: number) => setF({ ...f, follow_up_date: format(addWeeks(new Date(), w), 'yyyy-MM-dd') });
@@ -32,6 +37,9 @@ export default function ClientForm() {
     if (error) return Alert.alert('Save failed', error.message);
     router.back();
   }
+
+  // Editing but the client didn't load: hide the form so a save can't blank their details
+  if (loadError) return <Screen><LoadError onRetry={load} /></Screen>;
 
   return (
     <Screen>

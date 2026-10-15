@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import { TTD } from '../../lib/money';
 import { supabase } from '../../lib/supabase';
@@ -16,14 +17,21 @@ export default function NewPayment() {
   const [reference, setReference] = useState('');
   const [link, setLink] = useState('');
   const [note, setNote] = useState('');
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!appointmentId) return;
-    supabase.from('appointment_balances').select('*').eq('id', appointmentId).single().then(({ data }) => {
+    supabase.from('appointment_balances').select('*').eq('id', appointmentId).single().then(({ data, error }) => {
+      if (error) return setLoadError(true);
+      setLoadError(false);
       const a = data as AppointmentBalance; setAppt(a);
       setAmount(String(Math.max(0, Number(a.balance))));
     });
   }, [appointmentId]);
+  useEffect(load, [load]);
+
+  // Without the appointment, a save here would record a payment not linked to it
+  if (loadError) return <Screen><LoadError onRetry={load} /></Screen>;
 
   async function save() {
     const value = Number(amount);

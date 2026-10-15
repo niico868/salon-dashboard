@@ -1,8 +1,9 @@
 import { addMinutes, setHours } from 'date-fns';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import DateTimeField from '../../components/DateTimeField';
+import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import { TTD } from '../../lib/money';
 import { scheduleAppointmentReminder } from '../../lib/notifications';
@@ -19,21 +20,29 @@ export default function BookAppointment() {
   const [start, setStart] = useState(() => setHours(date ? new Date(date + 'T00:00') : new Date(), 10));
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
-    supabase.from('services').select('*').eq('active', true).order('name').then(({ data }) => setServices((data as Service[]) ?? []));
-    supabase.from('clients').select('*').order('full_name').then(({ data }) => {
-      const list = (data as Client[]) ?? []; setClients(list);
+  const load = useCallback(() => {
+    Promise.all([
+      supabase.from('services').select('*').eq('active', true).order('name'),
+      supabase.from('clients').select('*').order('full_name'),
+    ]).then(([sv, cl]) => {
+      if (sv.error || cl.error) return setLoadError(true);
+      setLoadError(false);
+      setServices((sv.data as Service[]) ?? []);
+      const list = (cl.data as Client[]) ?? []; setClients(list);
       if (clientId) setClient(list.find((c) => c.id === clientId) ?? null);
     });
   }, [clientId]);
+  useEffect(load, [load]);
 
   async function save() {
     if (!client || !service) return Alert.alert('Pick a client and a service');
     const end = addMinutes(start, service.duration_min);
     // Overlap check: any booked appointment that starts before this ends and ends after this starts
-    const { data: clash } = await supabase.from('appointments').select('id, service_name, starts_at')
+    const { data: clash, error: clashError } = await supabase.from('appointments').select('id, service_name, starts_at')
       .eq('status', 'booked').lt('starts_at', end.toISOString()).gt('ends_at', start.toISOString());
+    if (clashError) return Alert.alert("Couldn't check for overlaps", clashError.message);
     const go = async () => {
       const { data, error } = await supabase.from('appointments').insert({
         client_id: client.id, service_id: service.id, service_name: service.name,
@@ -53,6 +62,7 @@ export default function BookAppointment() {
 
   return (
     <Screen>
+      {loadError && <LoadError onRetry={load} />}
       <Text style={s.h}>Client</Text>
       {client ? (
         <Pressable style={s.picked} onPress={() => setClient(null)}><Text>{client.full_name}  ✕</Text></Pressable>

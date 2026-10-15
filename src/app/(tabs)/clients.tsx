@@ -1,17 +1,21 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import LoadError from '../../components/LoadError';
 import { supabase } from '../../lib/supabase';
 import type { Client } from '../../lib/types';
 
 export default function Clients() {
   const [list, setList] = useState<Client[]>([]);
   const [q, setQ] = useState('');
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async (term: string) => {
     let query = supabase.from('clients').select('*').order('full_name').limit(200);
     if (term.trim()) query = query.or(`full_name.ilike.%${term}%,phone.ilike.%${term}%`);
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) return setLoadError(true);
+    setLoadError(false);
     setList((data as Client[]) ?? []);
   }, []);
 
@@ -23,8 +27,9 @@ export default function Clients() {
         <TextInput style={s.search} placeholder="Search name or phone" value={q} onChangeText={setQ} />
         <Pressable style={s.add} onPress={() => router.push('/client/new')}><Text style={s.addText}>+</Text></Pressable>
       </View>
+      {loadError && <View style={{ padding: 16, paddingBottom: 0 }}><LoadError onRetry={() => load(q)} /></View>}
       <FlatList data={list} keyExtractor={(c) => c.id} contentContainerStyle={{ padding: 16, gap: 8 }}
-        ListEmptyComponent={<Text style={{ color: '#777' }}>No clients yet.</Text>}
+        ListEmptyComponent={loadError ? null : <Text style={{ color: '#777' }}>No clients yet.</Text>}
         renderItem={({ item }) => (
           <Pressable style={s.row} onPress={() => router.push(`/client/${item.id}`)}>
             <Text style={s.name}>{item.full_name}</Text>

@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
+import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import StatCard from '../../components/StatCard';
 import { TTD } from '../../lib/money';
@@ -14,9 +15,15 @@ export default function SalesTab() {
   const [period, setPeriod] = useState<Period>('week');
   const [anchor, setAnchor] = useState(new Date());
   const [data, setData] = useState<Sales | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const { from, to } = rangeFor(period, anchor);
 
-  useFocusEffect(useCallback(() => { salesBetween(from, to).then(setData); }, [period, anchor]));
+  const load = useCallback(() => {
+    salesBetween(from, to)
+      .then((d) => { setData(d); setLoadError(false); })
+      .catch(() => { setData(null); setLoadError(true); });
+  }, [period, anchor]);
+  useFocusEffect(load);
 
   const label = period === 'day' ? format(from, 'EEE d MMM yyyy')
     : period === 'week' ? `Week of ${format(from, 'd MMM')}` : format(from, 'MMMM yyyy');
@@ -44,36 +51,40 @@ export default function SalesTab() {
         <Pressable onPress={() => setAnchor(shift(period, anchor, 1))}><Text style={s.arrow}>›</Text></Pressable>
       </View>
 
-      <View style={s.grid}>
-        <StatCard label="Actual (received)" value={TTD(data?.actual ?? 0)} color={GREEN} />
-        <StatCard label="Potential (still due)" value={TTD(data?.potential ?? 0)} color="#C2185B" />
-        <StatCard label="Expected total" value={TTD(data?.expected ?? 0)} />
-        <StatCard label="Bookings" value={String(data?.bookings ?? 0)} />
-      </View>
-
-      {period !== 'day' && (
-        <View style={s.card}>
-          <BarChart stackData={bars} barWidth={period === 'week' ? 22 : 6} spacing={period === 'week' ? 18 : 4}
-            noOfSections={4} yAxisThickness={0} xAxisThickness={0} hideRules={false} height={180}
-            yAxisTextStyle={{ color: '#999', fontSize: 10 }} xAxisLabelTextStyle={{ color: '#999', fontSize: 10 }} />
-          <View style={s.legend}>
-            <Text><Text style={{ color: GREEN }}>■</Text> Received   <Text style={{ color: PINK }}>■</Text> Still due</Text>
+      {loadError ? <LoadError onRetry={load} /> : (
+        <>
+          <View style={s.grid}>
+            <StatCard label="Actual (received)" value={TTD(data?.actual ?? 0)} color={GREEN} />
+            <StatCard label="Potential (still due)" value={TTD(data?.potential ?? 0)} color="#C2185B" />
+            <StatCard label="Expected total" value={TTD(data?.expected ?? 0)} />
+            <StatCard label="Bookings" value={String(data?.bookings ?? 0)} />
           </View>
-        </View>
-      )}
 
-      <View style={s.card}>
-        <Text style={s.h}>Received by method</Text>
-        {Object.entries(data?.byMethod ?? {}).map(([m, v]) => (
-          <View key={m} style={s.line}><Text>{m}</Text><Text>{TTD(v)}</Text></View>
-        ))}
-      </View>
-      <View style={s.card}>
-        <Text style={s.h}>Top services (booked value)</Text>
-        {top.map(([name, v]) => (
-          <View key={name} style={s.line}><Text>{name}</Text><Text>{TTD(v)}</Text></View>
-        ))}
-      </View>
+          {period !== 'day' && (
+            <View style={s.card}>
+              <BarChart stackData={bars} barWidth={period === 'week' ? 22 : 6} spacing={period === 'week' ? 18 : 4}
+                noOfSections={4} yAxisThickness={0} xAxisThickness={0} hideRules={false} height={180}
+                yAxisTextStyle={{ color: '#999', fontSize: 10 }} xAxisLabelTextStyle={{ color: '#999', fontSize: 10 }} />
+              <View style={s.legend}>
+                <Text><Text style={{ color: GREEN }}>■</Text> Received   <Text style={{ color: PINK }}>■</Text> Still due</Text>
+              </View>
+            </View>
+          )}
+
+          <View style={s.card}>
+            <Text style={s.h}>Received by method</Text>
+            {Object.entries(data?.byMethod ?? {}).map(([m, v]) => (
+              <View key={m} style={s.line}><Text>{m}</Text><Text>{TTD(v)}</Text></View>
+            ))}
+          </View>
+          <View style={s.card}>
+            <Text style={s.h}>Top services (booked value)</Text>
+            {top.map(([name, v]) => (
+              <View key={name} style={s.line}><Text>{name}</Text><Text>{TTD(v)}</Text></View>
+            ))}
+          </View>
+        </>
+      )}
     </Screen>
   );
 }

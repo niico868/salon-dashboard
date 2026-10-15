@@ -25,7 +25,10 @@ export async function salesBetween(from: Date, to: Date) {
       .in('status', ['booked', 'completed'])
       .gte('starts_at', from.toISOString()).lt('starts_at', to.toISOString()),
   ]);
-  const payments = (pays.data ?? []) as { amount: number; method: string; paid_at: string; appointment_id: string | null }[];
+  // Fail loudly: silently returning zeros would look like real sales figures
+  if (pays.error) throw pays.error;
+  if (appts.error) throw appts.error;
+  const payments =(pays.data ?? []) as { amount: number; method: string; paid_at: string; appointment_id: string | null }[];
   const bookings = (appts.data ?? []) as AppointmentBalance[];
   const owed = (a: AppointmentBalance) => Math.max(0, Number(a.balance));
 

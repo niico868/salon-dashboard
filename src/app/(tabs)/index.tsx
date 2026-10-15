@@ -1,8 +1,9 @@
 import { addDays, addMonths, format, isPast, isToday, startOfMonth, subMonths } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
+import LoadError from '../../components/LoadError';
 import StatCard from '../../components/StatCard';
 import { TTD } from '../../lib/money';
 import { rangeFor, Sales, salesBetween } from '../../lib/sales';
@@ -19,36 +20,45 @@ export default function Dashboard() {
   const [followUps, setFollowUps] = useState<Client[]>([]);
   const [months, setMonths] = useState<{ label: string; value: number }[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
-    const now = new Date();
-    const d = rangeFor('day', now), w = rangeFor('week', now);
+    try {
+      const now = new Date();
+      const d = rangeFor('day', now), w = rangeFor('week', now);
 
-    const [t, wk, list, next, fu] = await Promise.all([
-      salesBetween(d.from, d.to),
-      salesBetween(w.from, w.to),
-      supabase.from('appointment_balances').select('*').neq('status', 'cancelled')
-        .gte('starts_at', d.from.toISOString()).lt('starts_at', d.to.toISOString()).order('starts_at'),
-      supabase.from('appointment_balances').select('*').eq('status', 'booked')
-        .gte('starts_at', d.to.toISOString()).lt('starts_at', w.to.toISOString()).order('starts_at').limit(5),
-      supabase.from('clients').select('*').not('follow_up_date', 'is', null)
-        .lte('follow_up_date', format(addDays(now, 7), 'yyyy-MM-dd')).order('follow_up_date'),
-    ]);
-    setToday(t); setWeek(wk);
-    setTodayList((list.data as AppointmentBalance[]) ?? []);
-    setUpcoming((next.data as AppointmentBalance[]) ?? []);
-    setFollowUps((fu.data as Client[]) ?? []);
+      const [t, wk, list, next, fu] = await Promise.all([
+        salesBetween(d.from, d.to),
+        salesBetween(w.from, w.to),
+        supabase.from('appointment_balances').select('*').neq('status', 'cancelled')
+          .gte('starts_at', d.from.toISOString()).lt('starts_at', d.to.toISOString()).order('starts_at'),
+        supabase.from('appointment_balances').select('*').eq('status', 'booked')
+          .gte('starts_at', d.to.toISOString()).lt('starts_at', w.to.toISOString()).order('starts_at').limit(5),
+        supabase.from('clients').select('*').not('follow_up_date', 'is', null)
+          .lte('follow_up_date', format(addDays(now, 7), 'yyyy-MM-dd')).order('follow_up_date'),
+      ]);
+      const queryError = list.error ?? next.error ?? fu.error;
+      if (queryError) throw queryError;
+      setToday(t); setWeek(wk);
+      setTodayList((list.data as AppointmentBalance[]) ?? []);
+      setUpcoming((next.data as AppointmentBalance[]) ?? []);
+      setFollowUps((fu.data as Client[]) ?? []);
 
-    // Six months of received revenue, oldest first
-    const starts = Array.from({ length: 6 }, (_, i) => startOfMonth(subMonths(now, 5 - i)));
-    const totals = await Promise.all(starts.map((m) => salesBetween(m, addMonths(m, 1))));
-    setMonths(starts.map((m, i) => ({ label: format(m, 'MMM'), value: totals[i].actual })));
+      // Six months of received revenue, oldest first
+      const starts = Array.from({ length: 6 }, (_, i) => startOfMonth(subMonths(now, 5 - i)));
+      const totals = await Promise.all(starts.map((m) => salesBetween(m, addMonths(m, 1))));
+      setMonths(starts.map((m, i) => ({ label: format(m, 'MMM'), value: totals[i].actual })));
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    }
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   async function clearFollowUp(id: string) {
-    await supabase.from('clients').update({ follow_up_date: null, follow_up_note: null }).eq('id', id);
+    const { error } = await supabase.from('clients').update({ follow_up_date: null, follow_up_note: null }).eq('id', id);
+    if (error) return Alert.alert('Update failed', error.message);
     load();
   }
 
@@ -57,9 +67,18 @@ export default function Dashboard() {
     stacks: [{ value: d.actual, color: GREEN }, { value: d.potential, color: PINK }],
   }));
 
+  const refresh = <RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />;
+
+  // Show the retry card instead of TT$0.00 tiles that look like real figures
+  if (loadError) return (
+    <ScrollView contentContainerStyle={s.page} refreshControl={refresh}>
+      <Text style={s.date}>{format(new Date(), 'EEEE d MMMM')}</Text>
+      <LoadError onRetry={load} />
+    </ScrollView>
+  );
+
   return (
-    <ScrollView contentContainerStyle={s.page}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}>
+    <ScrollView contentContainerStyle={s.page} refreshControl={refresh}>
       <Text style={s.date}>{format(new Date(), 'EEEE d MMMM')}</Text>
 
       <View style={s.grid}>

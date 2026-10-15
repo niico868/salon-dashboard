@@ -1,8 +1,9 @@
 import { addMinutes, differenceInMinutes, format } from 'date-fns';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import DateTimeField from '../../components/DateTimeField';
+import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import { TTD } from '../../lib/money';
 import { cancelAppointmentReminder, scheduleAppointmentReminder } from '../../lib/notifications';
@@ -13,28 +14,41 @@ export default function AppointmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [a, setA] = useState<AppointmentBalance | null>(null);
   const [pays, setPays] = useState<Payment[]>([]);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('appointment_balances').select('*').eq('id', id).single();
-    setA(data as AppointmentBalance);
-    const { data: p } = await supabase.from('payments').select('*').eq('appointment_id', id).order('created_at');
-    setPays((p as Payment[]) ?? []);
+    const [ar, pr] = await Promise.all([
+      supabase.from('appointment_balances').select('*').eq('id', id).single(),
+      supabase.from('payments').select('*').eq('appointment_id', id).order('created_at'),
+    ]);
+    if (ar.error || pr.error) return setLoadError(true);
+    setLoadError(false);
+    setA(ar.data as AppointmentBalance);
+    setPays((pr.data as Payment[]) ?? []);
   }, [id]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  if (loadError) return <Screen><LoadError onRetry={load} /></Screen>;
   if (!a) return null;
 
   async function setStatus(status: AppointmentStatus) {
-    await supabase.from('appointments').update({ status }).eq('id', id);
+    const { error } = await supabase.from('appointments').update({ status }).eq('id', id);
+    if (error) return Alert.alert('Update failed', error.message);
     if (status !== 'booked') await cancelAppointmentReminder(id);
     load();
   }
   async function reschedule(newStart: Date) {
     const len = differenceInMinutes(new Date(a!.ends_at), new Date(a!.starts_at));
-    await supabase.from('appointments').update({ starts_at: newStart.toISOString(),
+    const { error } = await supabase.from('appointments').update({ starts_at: newStart.toISOString(),
       ends_at: addMinutes(newStart, len).toISOString() }).eq('id', id);
+    if (error) return Alert.alert('Reschedule failed', error.message);
     await cancelAppointmentReminder(id);
     await scheduleAppointmentReminder(id, a!.client_name, a!.service_name, newStart);
+    load();
+  }
+  async function markPaid(paymentId: string) {
+    const { error } = await supabase.from('payments').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', paymentId);
+    if (error) return Alert.alert('Update failed', error.message);
     load();
   }
 
@@ -49,22 +63,19 @@ export default function AppointmentDetail() {
         <Text>Paid: {TTD(Number(a.paid))}</Text>
         <Text style={{ fontWeight: '700' }}>Balance: {TTD(Math.max(0, Number(a.balance)))}</Text>
         {pays.map((p) => (
-  <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-    <Text style={[s.sub, { flex: 1 }]}>{p.method} · {TTD(Number(p.amount))} · {p.status}</Text>
-    {p.status === 'pending' && (
-      <>
-        <Pressable onPress={async () => {
-          await supabase.from('payments').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', p.id);
-          load();
-        }}><Text style={{ color: '#2E7D32', fontWeight: '600' }}>Mark paid</Text></Pressable>
-        {p.payment_url && (
-          <Pressable onPress={() => Share.share({ message: `Your payment link: ${p.payment_url}` })}>
-            <Text style={{ color: '#C2185B' }}>Resend</Text></Pressable>
-        )}
-      </>
-    )}
-  </View>
-))}
+          <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={[s.sub, { flex: 1 }]}>{p.method} · {TTD(Number(p.amount))} · {p.status}</Text>
+            {p.status === 'pending' && (
+              <>
+                <Pressable onPress={() => markPaid(p.id)}><Text style={{ color: '#2E7D32', fontWeight: '600' }}>Mark paid</Text></Pressable>
+                {p.payment_url && (
+                  <Pressable onPress={() => Share.share({ message: `Your payment link: ${p.payment_url}` })}>
+                    <Text style={{ color: '#C2185B' }}>Resend</Text></Pressable>
+                )}
+              </>
+            )}
+          </View>
+        ))}
       </View>
 
       {Number(a.balance) > 0 && a.status !== 'cancelled' && (
