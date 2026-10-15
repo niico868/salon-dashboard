@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { router } from 'expo-router';
 import { Alert, Pressable, Text } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import Screen from '../../components/Screen';
@@ -15,7 +16,7 @@ export default function More() {
   return (
     <Screen>
       {/* Part 5 changes this row to: router.push('/services') */}
-      <Row label="Service menu" onPress={() => Alert.alert('Coming in Part 5')} />
+      <Row label="Service menu" onPress={() => router.push('/services')} />
       <Row label="Change passcode" onPress={() => setChanging(true)} />
       <Row label="Log out" onPress={() => Alert.alert('Log out?', '', [
         { text: 'Cancel' },
