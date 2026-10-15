@@ -1,11 +1,13 @@
 import { addDays, addMonths, format, isPast, isToday, startOfMonth, subMonths } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import LoadError from '../../components/LoadError';
 import StatCard from '../../components/StatCard';
+import { Birthday, birthdayMessage, birthdaysWithin } from '../../lib/birthdays';
 import { TTD } from '../../lib/money';
+import { waLink } from '../../lib/phone';
 import { rangeFor, Sales, salesBetween } from '../../lib/sales';
 import { supabase } from '../../lib/supabase';
 import type { AppointmentBalance, Client } from '../../lib/types';
@@ -18,6 +20,7 @@ export default function Dashboard() {
   const [todayList, setTodayList] = useState<AppointmentBalance[]>([]);
   const [upcoming, setUpcoming] = useState<AppointmentBalance[]>([]);
   const [followUps, setFollowUps] = useState<Client[]>([]);
+  const [birthdays, setBirthdays] = useState<Birthday<Client>[]>([]);
   const [months, setMonths] = useState<{ label: string; value: number }[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -27,7 +30,7 @@ export default function Dashboard() {
       const now = new Date();
       const d = rangeFor('day', now), w = rangeFor('week', now);
 
-      const [t, wk, list, next, fu] = await Promise.all([
+      const [t, wk, list, next, fu, bd] = await Promise.all([
         salesBetween(d.from, d.to),
         salesBetween(w.from, w.to),
         supabase.from('appointment_balances').select('*').neq('status', 'cancelled')
@@ -36,13 +39,15 @@ export default function Dashboard() {
           .gte('starts_at', d.to.toISOString()).lt('starts_at', w.to.toISOString()).order('starts_at').limit(5),
         supabase.from('clients').select('*').not('follow_up_date', 'is', null)
           .lte('follow_up_date', format(addDays(now, 7), 'yyyy-MM-dd')).order('follow_up_date'),
+        supabase.from('clients').select('*').not('birthday', 'is', null),
       ]);
-      const queryError = list.error ?? next.error ?? fu.error;
+      const queryError = list.error ?? next.error ?? fu.error ?? bd.error;
       if (queryError) throw queryError;
       setToday(t); setWeek(wk);
       setTodayList((list.data as AppointmentBalance[]) ?? []);
       setUpcoming((next.data as AppointmentBalance[]) ?? []);
       setFollowUps((fu.data as Client[]) ?? []);
+      setBirthdays(birthdaysWithin((bd.data as Client[]) ?? [], now));
 
       // Six months of received revenue, oldest first
       const starts = Array.from({ length: 6 }, (_, i) => startOfMonth(subMonths(now, 5 - i)));
@@ -115,6 +120,24 @@ export default function Dashboard() {
           <Text style={s.time}>{format(new Date(a.starts_at), 'EEE h:mm a')}</Text>
           <Text style={{ flex: 1 }}>{a.client_name} · {a.service_name}</Text>
         </Pressable>
+      ))}
+
+      <Text style={s.h}>Birthdays this week</Text>
+      {birthdays.length === 0 && <Text style={s.muted}>No birthdays in the next 7 days.</Text>}
+      {birthdays.map(({ client: c, date, turning }) => (
+        <View key={c.id} style={s.row}>
+          <Pressable style={{ flex: 1 }} onPress={() => router.push(`/client/${c.id}`)}>
+            <Text style={{ fontWeight: '600' }}>🎂 {c.full_name}</Text>
+            <Text style={{ color: isToday(date) ? '#C2185B' : '#777' }}>
+              {isToday(date) ? 'Today' : format(date, 'EEE d MMM')}{turning ? ` · turning ${turning}` : ''}
+            </Text>
+          </Pressable>
+          {c.phone && (
+            <Pressable onPress={() => Linking.openURL(waLink(c.phone!, birthdayMessage(c.full_name)))}>
+              <Text style={{ color: GREEN, fontWeight: '600' }}>Message</Text>
+            </Pressable>
+          )}
+        </View>
       ))}
 
       <Text style={s.h}>Follow-ups</Text>

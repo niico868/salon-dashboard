@@ -1,11 +1,12 @@
 import { format } from 'date-fns';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import StatCard from '../../components/StatCard';
+import { shareAppointmentInvoice } from '../../lib/invoice';
 import { TTD } from '../../lib/money';
 import { Period, rangeFor, Sales, salesBetween, shift } from '../../lib/sales';
 
@@ -83,6 +84,20 @@ export default function SalesTab() {
               <View key={name} style={s.line}><Text>{name}</Text><Text>{TTD(v)}</Text></View>
             ))}
           </View>
+          <View style={s.card}>
+            <Text style={s.h}>Invoices</Text>
+            {(data?.list ?? []).length === 0 && <Text style={{ color: '#777' }}>No bookings in this period.</Text>}
+            {(data?.list ?? []).map((a) => (
+              <View key={a.id} style={s.inv}>
+                <Pressable style={{ flex: 1 }} onPress={() => router.push(`/appointment/${a.id}`)}>
+                  <Text style={{ fontWeight: '600' }}>{a.client_name}</Text>
+                  <Text style={{ color: '#777' }}>{format(new Date(a.starts_at), 'EEE d MMM')} · {a.service_name} · {TTD(Number(a.price))}
+                    {Number(a.balance) > 0 ? ` · owes ${TTD(Number(a.balance))}` : ' · paid'}</Text>
+                </Pressable>
+                <Pressable onPress={() => shareAppointmentInvoice(a.id)} hitSlop={8}><Text style={s.pdf}>PDF</Text></Pressable>
+              </View>
+            ))}
+          </View>
         </>
       )}
     </Screen>
@@ -101,4 +116,6 @@ const s = StyleSheet.create({
   h: { fontWeight: '700', fontSize: 16 },
   line: { flexDirection: 'row', justifyContent: 'space-between' },
   legend: { alignItems: 'center', marginTop: 4 },
+  inv: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderTopWidth: 1, borderTopColor: '#f3f3f3' },
+  pdf: { color: '#C2185B', fontWeight: '600' },
 });

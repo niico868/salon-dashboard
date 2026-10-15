@@ -4,12 +4,11 @@ import { useCallback, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
+import { shareAppointmentInvoice, shareClientStatement } from '../../lib/invoice';
 import { TTD } from '../../lib/money';
+import { waLink } from '../../lib/phone';
 import { supabase } from '../../lib/supabase';
 import type { AppointmentBalance, Client } from '../../lib/types';
-
-// "868 555 1234" -> "18685551234" for WhatsApp links
-const waNumber = (p: string) => { const d = p.replace(/\D/g, ''); return d.length === 7 ? '1868' + d : d.length === 10 ? '1' + d : d; };
 
 export default function ClientProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -50,8 +49,9 @@ export default function ClientProfile() {
       <Text style={s.name}>{c.full_name}</Text>
       <View style={s.actions}>
         {c.phone && <Pressable style={s.act} onPress={() => Linking.openURL(`tel:${c.phone}`)}><Text>Call</Text></Pressable>}
-        {c.phone && <Pressable style={s.act} onPress={() => Linking.openURL(`https://wa.me/${waNumber(c.phone!)}`)}><Text>WhatsApp</Text></Pressable>}
+        {c.phone && <Pressable style={s.act} onPress={() => Linking.openURL(waLink(c.phone!))}><Text>WhatsApp</Text></Pressable>}
         <Pressable style={s.act} onPress={() => router.push(`/client/new?id=${id}`)}><Text>Edit</Text></Pressable>
+        {visits.length > 0 && <Pressable style={s.act} onPress={() => shareClientStatement(c, visits)}><Text>Statement PDF</Text></Pressable>}
       </View>
 
       <View style={s.stats}>
@@ -72,11 +72,16 @@ export default function ClientProfile() {
 
       <Text style={s.h}>History</Text>
       {visits.map((v) => (
-        <Pressable key={v.id} style={s.card} onPress={() => router.push(`/appointment/${v.id}`)}>
-          <Text style={{ fontWeight: '500' }}>{v.service_name} · {TTD(Number(v.price))}</Text>
-          <Text style={{ color: '#777' }}>{format(new Date(v.starts_at), 'EEE d MMM yyyy, h:mm a')} · {v.status}
-            {Number(v.balance) > 0 && v.status !== 'cancelled' ? ` · owes ${TTD(Number(v.balance))}` : ''}</Text>
-        </Pressable>
+        <View key={v.id} style={[s.card, s.visit]}>
+          <Pressable style={{ flex: 1, gap: 4 }} onPress={() => router.push(`/appointment/${v.id}`)}>
+            <Text style={{ fontWeight: '500' }}>{v.service_name} · {TTD(Number(v.price))}</Text>
+            <Text style={{ color: '#777' }}>{format(new Date(v.starts_at), 'EEE d MMM yyyy, h:mm a')} · {v.status}
+              {Number(v.balance) > 0 && v.status !== 'cancelled' ? ` · owes ${TTD(Number(v.balance))}` : ''}</Text>
+          </Pressable>
+          {v.status !== 'cancelled' && (
+            <Pressable onPress={() => shareAppointmentInvoice(v.id)} hitSlop={8}><Text style={s.pdf}>Invoice</Text></Pressable>
+          )}
+        </View>
       ))}
       <Pressable onPress={remove}><Text style={{ color: '#B00020', textAlign: 'center', padding: 12 }}>Delete client</Text></Pressable>
     </Screen>
@@ -89,12 +94,14 @@ const Stat = ({ label, value }: { label: string; value: string }) => (
 
 const s = StyleSheet.create({
   name: { fontSize: 24, fontWeight: '700' },
-  actions: { flexDirection: 'row', gap: 8 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   act: { backgroundColor: 'white', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#eee' },
   stats: { flexDirection: 'row', gap: 8 },
   stat: { flex: 1, backgroundColor: 'white', borderRadius: 12, padding: 12, gap: 4 },
   card: { backgroundColor: 'white', borderRadius: 12, padding: 14, gap: 4 },
   h: { fontWeight: '700', fontSize: 16 },
+  visit: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pdf: { color: '#C2185B', fontWeight: '600' },
   btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 14, alignItems: 'center' },
   btnText: { color: 'white', fontWeight: '600' },
 });

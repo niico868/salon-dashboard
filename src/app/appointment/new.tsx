@@ -1,4 +1,4 @@
-import { addMinutes, setHours } from 'date-fns';
+import { addMinutes, setHours, setMinutes } from 'date-fns';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -11,13 +11,17 @@ import { supabase } from '../../lib/supabase';
 import type { Client, Service } from '../../lib/types';
 
 export default function BookAppointment() {
-  const { clientId, date } = useLocalSearchParams<{ clientId?: string; date?: string }>();
+  const { clientId, date, time } = useLocalSearchParams<{ clientId?: string; date?: string; time?: string }>();
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [clientQ, setClientQ] = useState('');
   const [client, setClient] = useState<Client | null>(null);
   const [service, setService] = useState<Service | null>(null);
-  const [start, setStart] = useState(() => setHours(date ? new Date(date + 'T00:00') : new Date(), 10));
+  const [start, setStart] = useState(() => {
+    // `time` ("14:30") comes from tapping an empty slot in the calendar's day view
+    const [h, m] = /^\d{1,2}:\d{2}$/.test(time ?? '') ? time!.split(':').map(Number) : [10, 0];
+    return setMinutes(setHours(date ? new Date(date + 'T00:00') : new Date(), h), m);
+  });
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
   const [loadError, setLoadError] = useState(false);

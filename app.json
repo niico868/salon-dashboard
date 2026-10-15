@@ -20,7 +20,11 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
+      "output": "single",
+      "name": "Salon Dashboard",
+      "shortName": "Salon",
+      "themeColor": "#C2185B",
+      "backgroundColor": "#FFF7FA",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -34,7 +38,8 @@
         }
       ],
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { clearPasscode } from '@/lib/passcode';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Alert, Pressable, Text } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
-import Screen from '../../components/Screen';
 import PasscodePrompt from '../../components/PasscodePrompt';
+import Screen from '../../components/Screen';
 import { supabase } from '../../lib/supabase';
 
 export default function More() {
@@ -21,14 +21,14 @@ export default function More() {
       <Row label="Log out" onPress={() => Alert.alert('Log out?', '', [
         { text: 'Cancel' },
         { text: 'Log out', style: 'destructive', onPress: async () => {
-          await SecureStore.deleteItemAsync('menu_passcode_hash');
+          await clearPasscode();
           await supabase.auth.signOut();
         } },
       ])} />
       <PasscodePrompt visible={changing} onCancel={() => setChanging(false)}
         onSuccess={async () => {
           setChanging(false);
-          await SecureStore.deleteItemAsync('menu_passcode_hash');
+          await clearPasscode();
           Alert.alert('Passcode cleared', 'You will create a new one next time it is needed.');
         }} />
     </Screen>

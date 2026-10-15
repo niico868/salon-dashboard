@@ -5,6 +5,7 @@ import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import DateTimeField from '../../components/DateTimeField';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
+import { shareAppointmentInvoice } from '../../lib/invoice';
 import { TTD } from '../../lib/money';
 import { cancelAppointmentReminder, scheduleAppointmentReminder } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
@@ -76,6 +77,9 @@ export default function AppointmentDetail() {
             )}
           </View>
         ))}
+        {a.status !== 'cancelled' && (
+          <Pressable onPress={() => shareAppointmentInvoice(a.id)}><Text style={{ color: '#C2185B', fontWeight: '600' }}>Invoice PDF</Text></Pressable>
+        )}
       </View>
 
       {Number(a.balance) > 0 && a.status !== 'cancelled' && (

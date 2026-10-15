@@ -2,9 +2,11 @@ import type { Session } from '@supabase/supabase-js';
 import * as Notifications from 'expo-notifications';
 import { router, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, AppState, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, View } from 'react-native';
 import { setupNotifications, syncReminders } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
+import '../lib/web-alert';
+
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
@@ -17,7 +19,7 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (!session) return;
+    if (!session || Platform.OS === 'web') return;
     setupNotifications()
       .then((ok) => { if (ok) return syncReminders(); })
       .catch((e) => console.warn('Reminders not set up:', e?.message));

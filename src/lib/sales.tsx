@@ -50,7 +50,8 @@ export async function salesBetween(from: Date, to: Date) {
 
   const actual = sum(payments.map((p) => Number(p.amount)));
   const potential = sum(bookings.map(owed));
-  return { actual, potential, expected: actual + potential, bookings: bookings.length, days, byMethod, byService };
+  const list = [...bookings].sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+  return { actual, potential, expected: actual + potential, bookings: bookings.length, list, days, byMethod, byService };
 }
 
 export type Sales = Awaited<ReturnType<typeof salesBetween>>;
