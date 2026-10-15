@@ -1,0 +1,10 @@
+export type Service = { id: string; name: string; category: string; price: number; duration_min: number; active: boolean };
+export type Client = { id: string; full_name: string; phone: string | null; email: string | null; birthday: string | null;
+  preferences: string | null; notes: string | null; follow_up_date: string | null; follow_up_note: string | null };
+export type AppointmentStatus = 'booked' | 'completed' | 'cancelled' | 'no_show';
+export type Appointment = { id: string; client_id: string; service_id: string | null; service_name: string; price: number;
+  starts_at: string; ends_at: string; status: AppointmentStatus; notes: string | null };
+export type AppointmentBalance = Appointment & { client_name: string; paid: number; balance: number };
+export type Payment = { id: string; appointment_id: string | null; client_id: string | null; amount: number;
+  method: 'cash' | 'card' | 'transfer' | 'online'; status: 'pending' | 'paid' | 'failed' | 'refunded';
+  paid_at: string | null; reference: string | null; payment_url: string | null; note: string | null };

@@ -1,18 +1,30 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { Stack } from 'expo-router';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+export default function RootLayout() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [ready, setReady] = useState(false);
 
-SplashScreen.preventAutoHideAsync();
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  if (!ready) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator /></View>;
+
+  // Add more screens here as you build them (services, client/[id], appointment/new, ...)
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <Stack>
+      <Stack.Protected guard={!!session}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!session}>
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+      </Stack.Protected>
+    </Stack>
   );
 }
