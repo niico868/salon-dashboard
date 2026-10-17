@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { router, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, View } from 'react-native';
-import { setupNotifications, syncReminders } from '../lib/notifications';
+import { setupNotifications, setupWebNotifications, syncReminders, watchWebsiteBookings } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 import '../lib/web-alert';
 
@@ -17,6 +17,13 @@ export default function RootLayout() {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Pop up an alert as soon as a website booking lands (phone and browser)
+  useEffect(() => {
+    if (!session) return;
+    setupWebNotifications().catch(() => {});
+    return watchWebsiteBookings();
+  }, [session]);
 
   useEffect(() => {
     if (!session || Platform.OS === 'web') return;

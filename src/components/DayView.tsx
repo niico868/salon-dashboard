@@ -2,7 +2,8 @@ import { differenceInMinutes, format, isToday, setHours, setMinutes, startOfDay 
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { AppointmentBalance } from '../lib/types';
 
-const OPEN_HOUR = 8, CLOSE_HOUR = 19;   // salon hours (24-hour clock); free gaps are only shown inside these
+const OPEN_HOUR = 10, CLOSE_HOUR = 16;  // salon hours (24-hour clock); free gaps are only shown inside these
+const OPEN_DAYS = [2, 3, 4, 5, 6];      // Tuesday to Saturday (0 = Sunday); no free gaps are shown on closed days
 const HOUR_H = 64;                      // height of one hour in the grid
 const MIN_GAP = 30;                     // shorter free gaps are left unlabeled
 const COLOR = { booked: '#C2185B', completed: '#2E7D32' } as const;
@@ -49,12 +50,14 @@ export default function DayView({ date, appts, onPressAppt, onPressSlot }: Props
 
   // Free time between bookings, within opening hours
   const gaps: { start: number; end: number }[] = [];
-  let cursor = OPEN_HOUR * 60;
-  for (const it of items) {
-    if (it.start - cursor >= MIN_GAP) gaps.push({ start: cursor, end: Math.min(it.start, CLOSE_HOUR * 60) });
-    cursor = Math.max(cursor, it.end);
+  if (OPEN_DAYS.includes(day.getDay())) {
+    let cursor = OPEN_HOUR * 60;
+    for (const it of items) {
+      if (it.start - cursor >= MIN_GAP) gaps.push({ start: cursor, end: Math.min(it.start, CLOSE_HOUR * 60) });
+      cursor = Math.max(cursor, it.end);
+    }
+    if (CLOSE_HOUR * 60 - cursor >= MIN_GAP) gaps.push({ start: cursor, end: CLOSE_HOUR * 60 });
   }
-  if (CLOSE_HOUR * 60 - cursor >= MIN_GAP) gaps.push({ start: cursor, end: CLOSE_HOUR * 60 });
   const freeMin = gaps.filter((g) => g.end - g.start >= MIN_GAP).reduce((t, g) => t + g.end - g.start, 0);
 
   const now = mins(new Date(), day);

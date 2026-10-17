@@ -1,6 +1,6 @@
 import { addDays, format, setHours, startOfDay, subMinutes } from 'date-fns';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { birthdaysWithin } from './birthdays';
 import { supabase } from './supabase';
 
@@ -45,6 +45,48 @@ export async function scheduleAppointmentReminder(id: string, client: string, se
 export async function cancelAppointmentReminder(id: string) {
   if (Platform.OS === 'web') return;
   await Notifications.cancelScheduledNotificationAsync(`appt-${id}`).catch(() => {});
+}
+
+// Alert straight away when a booking arrives from the website (notes start with "[Website]").
+// Works while the app is open or in the background. Needs Realtime turned on for the
+// appointments table in Supabase (see docs/HANDOFF-website-booking.md).
+export function watchWebsiteBookings() {
+  const channel = supabase
+    .channel('website-bookings')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'appointments' }, async (payload) => {
+      const row = payload.new as { id: string; notes: string | null };
+      if (!row.notes?.startsWith('[Website]')) return;
+      const { data: a } = await supabase.from('appointment_balances')
+        .select('id, client_name, service_name, starts_at').eq('id', row.id).single();
+      if (!a) return;
+      const start = new Date(a.starts_at);
+      const title = 'New website booking';
+      const body = `${a.client_name} · ${a.service_name} · ${format(start, 'EEE d MMM, h:mm a')}`;
+
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          const n = new Notification(title, { body, tag: `web-booking-${a.id}` });
+          n.onclick = () => { window.focus(); window.location.assign(`/appointment/${a.id}`); };
+        } else {
+          Alert.alert(title, body);
+        }
+        return;
+      }
+      await Notifications.scheduleNotificationAsync({
+        identifier: `web-booking-${a.id}`,
+        content: { title, body, data: { url: `/appointment/${a.id}` } },
+        trigger: null,   // show now
+      });
+      await scheduleAppointmentReminder(a.id, a.client_name, a.service_name, start);
+    })
+    .subscribe();
+  return () => { supabase.removeChannel(channel); };
+}
+
+// In a browser, ask once for permission to show new-booking pop-ups
+export async function setupWebNotifications() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || !('Notification' in window)) return;
+  if (Notification.permission === 'default') await Notification.requestPermission().catch(() => {});
 }
 
 // Rebuild everything for the next 7 days. Called when the app opens or comes back to the front.

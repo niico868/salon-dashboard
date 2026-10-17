@@ -65,12 +65,25 @@ app's **Supabase** database, so they appear in the app's calendar like any other
   `tsc`/lint on purpose. The first deploy and `curl` test is its real test.
 - **Timezone is Trinidad (`-04:00`).** It can be changed with the `SALON_UTC_OFFSET` secret.
 
+## Instant alerts for website bookings (added 17 Oct 2026)
+
+The app now pops up "New website booking" as soon as one arrives, while the app is open or in the
+background (phone notification, or a browser pop-up on the web version). It listens with Supabase
+Realtime, which is off by default. Turn it on once:
+
+1. Supabase dashboard → **SQL Editor** → **New query**.
+2. Paste and run: `alter publication supabase_realtime add table public.appointments;`
+3. You should see "Success. No rows returned".
+
+If the app is fully closed, the booking still shows next time it opens, and Krystal still gets the
+website's email and WhatsApp alert.
+
 ## Good to know
 
 - **Limits:** bookings need 60 minutes' notice and can be at most 120 days ahead. Both are set at
   the top of `index.ts`.
-- **Notifications:** website bookings get phone reminders only after the app is next opened, when
-  reminders re-sync. Instant alerts for new website bookings would be a sensible next feature.
+- **Notifications:** new website bookings now alert instantly while the app is open or in the
+  background (see above). If the app was fully closed, its reminder is set the next time it opens.
 - **Same session, other features:** this session also added birthdays, the calendar day view and
   invoice PDFs. For those, the salon's name, address and phone still need filling in at the top of
   `src/lib/invoice.ts`. All of this work is uncommitted on `main`.
