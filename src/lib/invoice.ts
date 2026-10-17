@@ -4,10 +4,11 @@ import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
 import { TTD } from './money';
 import { supabase } from './supabase';
+import { brand, colors } from './theme';
 import type { AppointmentBalance, Client, Payment } from './types';
 
 // Printed at the top of every invoice: change these to the salon's real details
-const SALON = { name: 'Your Salon', address: 'Street, Town, Trinidad', phone: '868 000 0000', email: '' };
+const SALON = { name: brand.name, address: 'Street, Town, Trinidad', phone: '868 000 0000', email: '' };
 
 const esc = (s: string | null | undefined) =>
   (s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
@@ -20,21 +21,21 @@ export const invoiceNumber = (a: Pick<AppointmentBalance, 'id' | 'starts_at'>) =
 function page(title: string, body: string) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
     @page { margin: 18mm; }
-    body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #222; font-size: 12px; }
-    .top { display: flex; justify-content: space-between; border-bottom: 3px solid #C2185B; padding-bottom: 12px; }
-    .salon { font-size: 20px; font-weight: 700; color: #C2185B; }
-    .muted { color: #777; }
+    body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: ${colors.text}; font-size: 12px; }
+    .top { display: flex; justify-content: space-between; border-bottom: 3px solid ${colors.primary}; padding-bottom: 12px; }
+    .salon { font-size: 20px; font-weight: 700; color: ${colors.primary}; }
+    .muted { color: ${colors.textMuted}; }
     h1 { font-size: 22px; margin: 0; text-align: right; }
     .cols { display: flex; justify-content: space-between; margin: 20px 0; }
     table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    th { text-align: left; background: #FCE4EC; padding: 8px; }
-    td { padding: 8px; border-bottom: 1px solid #eee; }
+    th { text-align: left; background: ${colors.blush}; padding: 8px; }
+    td { padding: 8px; border-bottom: 1px solid ${colors.border}; }
     .r { text-align: right; }
     .totals { margin-left: auto; width: 260px; margin-top: 14px; }
     .totals td { border: none; padding: 4px 8px; }
-    .due td { font-weight: 700; font-size: 14px; border-top: 2px solid #222; }
-    .paid { color: #2E7D32; font-weight: 700; }
-    .foot { margin-top: 36px; text-align: center; color: #777; }
+    .due td { font-weight: 700; font-size: 14px; border-top: 2px solid ${colors.text}; }
+    .paid { color: ${colors.success}; font-weight: 700; }
+    .foot { margin-top: 36px; text-align: center; color: ${colors.textMuted}; }
   </style></head><body>${body}<p class="foot">Thank you for visiting ${esc(SALON.name)}!</p></body></html>`;
 }
 

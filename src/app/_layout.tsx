@@ -1,16 +1,23 @@
 import type { Session } from '@supabase/supabase-js';
 import * as Notifications from 'expo-notifications';
 import { router, Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, AppState, Platform, View } from 'react-native';
+import { AppState, Platform } from 'react-native';
+import { ToastProvider } from '../components/Toast';
+import { useBrandFonts } from '../lib/fonts';
 import { setupNotifications, setupWebNotifications, syncReminders, watchWebsiteBookings } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
+import { colors, fonts } from '../lib/theme';
 import '../lib/web-alert';
 
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  const fontsReady = useBrandFonts();
+  const appReady = ready && fontsReady;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
@@ -47,10 +54,21 @@ export default function RootLayout() {
     return () => { appSub.remove(); tapSub.remove(); };
   }, [session]);
 
-  if (!ready) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator /></View>;
+  useEffect(() => {
+    if (appReady) SplashScreen.hideAsync().catch(() => {});
+  }, [appReady]);
+
+  if (!appReady) return null;
 
   return (
-    <Stack>
+    <ToastProvider>
+    <Stack screenOptions={{
+      headerStyle: { backgroundColor: colors.background },
+      headerShadowVisible: false,
+      headerTintColor: colors.primary,
+      headerTitleStyle: { fontFamily: fonts.heading, color: colors.text },
+      contentStyle: { backgroundColor: colors.background },
+    }}>
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="services" options={{ title: 'Service menu' }} />
@@ -64,5 +82,6 @@ export default function RootLayout() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
+    </ToastProvider>
   );
 }

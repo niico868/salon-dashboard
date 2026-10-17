@@ -7,24 +7,20 @@
     "icon": "./assets/images/icon.png",
     "scheme": "salondashboard",
     "userInterfaceStyle": "automatic",
-    "ios": {
-      "icon": "./assets/expo.icon"
-    },
+    "ios": {},
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#FFF5F8"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "single",
-      "name": "Salon Dashboard",
-      "shortName": "Salon",
-      "themeColor": "#C2185B",
-      "backgroundColor": "#FFF7FA",
+      "name": "Melt Aways Spa Dashboard",
+      "shortName": "Melt Aways",
+      "themeColor": "#D51D5E",
+      "backgroundColor": "#FFF8FA",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -32,9 +28,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 220,
+          "backgroundColor": "#FFF8FA"
         }
       ],
       "expo-secure-store",

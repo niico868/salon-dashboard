@@ -1,11 +1,21 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
-const PINK = '#C2185B';
+import { colors, fonts } from '../../lib/theme';
 
 export default function TabLayout() {
   return (
-    <Tabs screenOptions={{ tabBarActiveTintColor: PINK, headerTitleAlign: 'center' }}>
+    <Tabs screenOptions={{
+      headerTitleAlign: 'center',
+      headerStyle: { backgroundColor: colors.background },
+      headerShadowVisible: false,
+      headerTintColor: colors.primary,
+      headerTitleStyle: { fontFamily: fonts.heading, color: colors.text },
+      sceneStyle: { backgroundColor: colors.background },
+      tabBarActiveTintColor: colors.primary,
+      tabBarInactiveTintColor: colors.textMuted,
+      tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+      tabBarLabelStyle: { fontFamily: fonts.bodyMedium },
+    }}>
       <Tabs.Screen name="index" options={{ title: 'Home',
         tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }} />
       <Tabs.Screen name="calendar" options={{ title: 'Calendar',

@@ -1,13 +1,20 @@
 import { addMinutes, setHours, setMinutes } from 'date-fns';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import Button from '../../components/Button';
 import DateTimeField from '../../components/DateTimeField';
+import Field from '../../components/Field';
 import LoadError from '../../components/LoadError';
+import PressableScale from '../../components/PressableScale';
 import Screen from '../../components/Screen';
+import { useToast } from '../../components/Toast';
+import { Body, BodyStrong, Heading, Label } from '../../components/Typography';
 import { TTD } from '../../lib/money';
 import { scheduleAppointmentReminder } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
+import { colors, fonts, radius, shadow, space, touch } from '../../lib/theme';
 import type { Client, Service } from '../../lib/types';
 
 export default function BookAppointment() {
@@ -25,6 +32,7 @@ export default function BookAppointment() {
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
   const [loadError, setLoadError] = useState(false);
+  const toast = useToast();
 
   const load = useCallback(() => {
     Promise.all([
@@ -55,6 +63,7 @@ export default function BookAppointment() {
       }).select().single();
       if (error) return Alert.alert('Save failed', error.message);
       await scheduleAppointmentReminder(data.id, client.full_name, service.name, start);
+      toast.show('Appointment booked');
       router.back();
     };
     if (clash && clash.length) {
@@ -67,49 +76,61 @@ export default function BookAppointment() {
   return (
     <Screen>
       {loadError && <LoadError onRetry={load} />}
-      <Text style={s.h}>Client</Text>
+      <Heading>Client <Text style={{ color: colors.primary }}>*</Text></Heading>
       {client ? (
-        <Pressable style={s.picked} onPress={() => setClient(null)}><Text>{client.full_name}  ✕</Text></Pressable>
+        <PressableScale style={s.picked} onPress={() => setClient(null)} accessibilityLabel={`Change client, ${client.full_name}`}>
+          <Ionicons name="person" size={18} color={colors.primary} />
+          <BodyStrong style={{ flex: 1 }}>{client.full_name}</BodyStrong>
+          <Ionicons name="close-circle" size={20} color={colors.primary} />
+        </PressableScale>
       ) : (
         <>
-          <TextInput style={s.in} placeholder="Type a client's name" value={clientQ} onChangeText={setClientQ} />
+          <Field label="Find client" placeholder="e.g. Aaliyah" hint="Type part of their name, then tap them below"
+            value={clientQ} onChangeText={setClientQ} />
           {matches.map((c) => (
-            <Pressable key={c.id} style={s.opt} onPress={() => { setClient(c); setClientQ(''); }}><Text>{c.full_name}</Text></Pressable>
+            <PressableScale key={c.id} style={s.opt} onPress={() => { setClient(c); setClientQ(''); }}>
+              <Body>{c.full_name}</Body>
+            </PressableScale>
           ))}
-          <Pressable onPress={() => router.push('/client/new')}><Text style={s.link}>+ New client</Text></Pressable>
+          {clientQ !== '' && matches.length === 0 && <Label>No client with that name.</Label>}
+          <Button title="New client" icon="person-add-outline" variant="ghost" style={{ alignSelf: 'flex-start' }}
+            onPress={() => router.push('/client/new')} />
         </>
       )}
 
-      <Text style={s.h}>Service</Text>
+      <Heading>Service <Text style={{ color: colors.primary }}>*</Text></Heading>
       <View style={s.wrap}>
-        {services.map((sv) => (
-          <Pressable key={sv.id} onPress={() => { setService(sv); setPrice(''); }}
-            style={[s.chip, service?.id === sv.id && s.chipOn]}>
-            <Text style={service?.id === sv.id ? { color: 'white' } : undefined}>{sv.name} · {TTD(Number(sv.price))}</Text>
-          </Pressable>
-        ))}
+        {services.map((sv) => {
+          const on = service?.id === sv.id;
+          return (
+            <Pressable key={sv.id} onPress={() => { setService(sv); setPrice(''); }}
+              style={[s.chip, on && s.chipOn]} accessibilityRole="button" accessibilityState={{ selected: on }}>
+              <Text style={[s.chipText, on && s.chipTextOn]}>{sv.name} · {TTD(Number(sv.price))}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
-      <Text style={s.h}>Date and time</Text>
+      <Heading>Date and time</Heading>
       <DateTimeField value={start} onChange={setStart} />
 
-      <TextInput style={s.in} keyboardType="decimal-pad" value={price} onChangeText={setPrice}
-        placeholder={service ? `Price (default ${TTD(Number(service.price))})` : 'Price'} />
-      <TextInput style={s.in} placeholder="Notes" value={notes} onChangeText={setNotes} />
-      <Pressable style={s.btn} onPress={save}><Text style={s.btnText}>Book</Text></Pressable>
+      <Field label="Price (TT$)" keyboardType="decimal-pad" value={price} onChangeText={setPrice}
+        placeholder={service ? `e.g. ${Number(service.price)}` : 'e.g. 350'}
+        hint={service ? `Leave blank to use the menu price, ${TTD(Number(service.price))}` : 'Leave blank to use the menu price'} />
+      <Field label="Notes" placeholder="e.g. Wants a shorter session today" value={notes} onChangeText={setNotes} />
+      <Button title="Book" icon="calendar" onPress={save} style={{ marginTop: space.sm }} />
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  h: { fontWeight: '700', fontSize: 16, marginTop: 4 },
-  in: { backgroundColor: 'white', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#eee' },
-  opt: { backgroundColor: 'white', padding: 12, borderRadius: 8 },
-  picked: { backgroundColor: '#F8BBD0', padding: 12, borderRadius: 10 },
-  link: { color: '#C2185B', padding: 4 },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { backgroundColor: 'white', borderWidth: 1, borderColor: '#C2185B', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
-  chipOn: { backgroundColor: '#C2185B' },
-  btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
-  btnText: { color: 'white', fontWeight: '600' },
+  opt: { backgroundColor: colors.surface, padding: space.md, borderRadius: radius.lg, ...shadow.card },
+  picked: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.blush,
+    padding: space.md, borderRadius: radius.md, minHeight: touch.min + 4 },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  chip: { minHeight: touch.min - 4, justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1,
+    borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: 14 },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.text },
+  chipTextOn: { fontFamily: fonts.bodyBold, color: colors.textOnPrimary },
 });

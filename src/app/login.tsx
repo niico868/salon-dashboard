@@ -1,6 +1,12 @@
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { brand, colors, space } from '../lib/theme';
+import Logo from '../components/Logo';
+import Field from '../components/Field';
+import Button from '../components/Button';
+import FadeInView from '../components/FadeInView';
+import { Small, Title } from '../components/Typography';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -15,22 +21,27 @@ export default function Login() {
   }
 
   return (
-    <View style={s.wrap}>
-      <Text style={s.title}>Salon Dashboard</Text>
-      <TextInput style={s.input} placeholder="Email" autoCapitalize="none" keyboardType="email-address"
-        value={email} onChangeText={setEmail} />
-      <TextInput style={s.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
-      <Pressable style={[s.btn, busy && { opacity: 0.5 }]} disabled={busy} onPress={signIn}>
-        <Text style={s.btnText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
-      </Pressable>
-    </View>
+    <KeyboardAvoidingView style={s.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <FadeInView style={s.logo}>
+        <Logo width={220} />
+        <Title style={s.appName} accessibilityRole="header">{brand.appName}</Title>
+      </FadeInView>
+      <FadeInView index={1} style={s.card}>
+        <Field label="Email" placeholder="you@example.com" autoCapitalize="none" keyboardType="email-address"
+          autoComplete="email" value={email} onChangeText={setEmail} />
+        <Field label="Password" placeholder="Your password" secureTextEntry autoComplete="password"
+          value={password} onChangeText={setPassword} onSubmitEditing={signIn} />
+        <Button title="Sign in" onPress={signIn} loading={busy} style={{ marginTop: space.sm }} />
+      </FadeInView>
+      <View style={{ alignItems: 'center' }}><Small style={{ fontStyle: 'italic' }}>{brand.tagline}</Small></View>
+    </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  wrap: { flex: 1, justifyContent: 'center', padding: 24, gap: 12, backgroundColor: '#FFF7FA' },
-  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 24, color: '#C2185B' },
-  input: { backgroundColor: 'white', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#eee' },
-  btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 16, alignItems: 'center' },
-  btnText: { color: 'white', fontWeight: '600', fontSize: 16 },
+  page: { flex: 1, justifyContent: 'center', padding: space.xl, gap: space.xl, backgroundColor: colors.background },
+  logo: { alignItems: 'center', gap: space.md },
+  appName: { fontSize: 24, textAlign: 'center', color: colors.text },
+  card: { backgroundColor: colors.surface, borderRadius: 20, padding: space.xl, gap: space.lg,
+    shadowColor: colors.primary, shadowOpacity: 0.1, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
 });
