@@ -1,16 +1,25 @@
 import type { Session } from '@supabase/supabase-js';
+import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import { router, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, View } from 'react-native';
 import { setupNotifications, syncReminders } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
+import { C, F } from '../lib/theme';
 import '../lib/web-alert';
 
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  const [fontsLoaded, fontError] = useFonts({
+    [F.script]: require('../../assets/fonts/GreatVibes-Regular.ttf'),
+    [F.body]: require('../../assets/fonts/Lato-Regular.ttf'),
+    [F.bodyBold]: require('../../assets/fonts/Lato-Bold.ttf'),
+    [F.title]: require('../../assets/fonts/PlayfairDisplay-SemiBold.ttf'),
+    [F.titleBold]: require('../../assets/fonts/PlayfairDisplay-Bold.ttf'),
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
@@ -40,10 +49,19 @@ export default function RootLayout() {
     return () => { appSub.remove(); tapSub.remove(); };
   }, [session]);
 
-  if (!ready) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator /></View>;
+  // A font that fails to download should not lock Krystal out — fall back to system fonts
+  if (!ready || (!fontsLoaded && !fontError)) return (
+    <View style={{ flex: 1, justifyContent: 'center', backgroundColor: C.bg }}><ActivityIndicator color={C.primary} /></View>
+  );
 
   return (
-    <Stack>
+    <Stack screenOptions={{
+      headerStyle: { backgroundColor: C.bg },
+      headerTintColor: C.primary,
+      headerTitleStyle: { fontFamily: F.title, color: C.ink },
+      headerShadowVisible: false,
+      contentStyle: { backgroundColor: C.bg },
+    }}>
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="services" options={{ title: 'Service menu' }} />

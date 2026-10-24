@@ -1,7 +1,8 @@
 import { clearPasscode } from '@/lib/passcode';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, Text } from 'react-native';
+import { Alert, Pressable } from 'react-native';
+import { Text } from '../../components/AppText';
 import PasscodePrompt from '../../components/PasscodePrompt';
 import Screen from '../../components/Screen';
 import { supabase } from '../../lib/supabase';

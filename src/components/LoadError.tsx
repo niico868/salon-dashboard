@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './AppText';
 
 type Props = { onRetry: () => void; message?: string };
 
@@ -13,8 +14,8 @@ export default function LoadError({ onRetry, message = "Couldn't load. Check you
 }
 
 const s = StyleSheet.create({
-  box: { backgroundColor: '#FCE4EC', borderRadius: 12, padding: 14, gap: 10, borderWidth: 1, borderColor: '#F48FB1' },
-  text: { color: '#880E4F', textAlign: 'center' },
-  btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 12, alignItems: 'center' },
+  box: { backgroundColor: '#F8E2E1', borderRadius: 12, padding: 14, gap: 10, borderWidth: 1, borderColor: '#E3B8B7' },
+  text: { color: '#6E2427', textAlign: 'center' },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 12, alignItems: 'center' },
   btnText: { color: 'white', fontWeight: '600' },
 });

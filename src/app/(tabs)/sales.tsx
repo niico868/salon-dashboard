@@ -1,7 +1,8 @@
 import { format } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../components/AppText';
 import { BarChart } from 'react-native-gifted-charts';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
@@ -10,7 +11,7 @@ import { shareAppointmentInvoice } from '../../lib/invoice';
 import { TTD } from '../../lib/money';
 import { Period, rangeFor, Sales, salesBetween, shift } from '../../lib/sales';
 
-const GREEN = '#2E7D32', PINK = '#F48FB1';
+const GREEN = '#2E7D32', PINK = '#E3B8B7';
 
 export default function SalesTab() {
   const [period, setPeriod] = useState<Period>('week');
@@ -56,7 +57,7 @@ export default function SalesTab() {
         <>
           <View style={s.grid}>
             <StatCard label="Actual (received)" value={TTD(data?.actual ?? 0)} color={GREEN} />
-            <StatCard label="Potential (still due)" value={TTD(data?.potential ?? 0)} color="#C2185B" />
+            <StatCard label="Potential (still due)" value={TTD(data?.potential ?? 0)} color="#9D3438" />
             <StatCard label="Expected total" value={TTD(data?.expected ?? 0)} />
             <StatCard label="Bookings" value={String(data?.bookings ?? 0)} />
           </View>
@@ -107,9 +108,9 @@ export default function SalesTab() {
 const s = StyleSheet.create({
   seg: { flexDirection: 'row', backgroundColor: 'white', borderRadius: 10, padding: 4 },
   segBtn: { flex: 1, padding: 10, alignItems: 'center', borderRadius: 8 },
-  segOn: { backgroundColor: '#C2185B' },
+  segOn: { backgroundColor: '#9D3438' },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  arrow: { fontSize: 32, color: '#C2185B', paddingHorizontal: 12 },
+  arrow: { fontSize: 32, color: '#9D3438', paddingHorizontal: 12 },
   label: { fontSize: 16, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   card: { backgroundColor: 'white', borderRadius: 12, padding: 14, gap: 6 },
@@ -117,5 +118,5 @@ const s = StyleSheet.create({
   line: { flexDirection: 'row', justifyContent: 'space-between' },
   legend: { alignItems: 'center', marginTop: 4 },
   inv: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderTopWidth: 1, borderTopColor: '#f3f3f3' },
-  pdf: { color: '#C2185B', fontWeight: '600' },
+  pdf: { color: '#9D3438', fontWeight: '600' },
 });

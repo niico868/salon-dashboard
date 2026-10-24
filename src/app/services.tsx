@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
+import { C, F } from '../lib/theme';
 import { useFocusEffect } from 'expo-router';
 import Screen from '../components/Screen';
 import LoadError from '../components/LoadError';
@@ -53,7 +55,7 @@ export default function Services() {
     <Screen>
       <Pressable style={[st.btn, unlocked && st.btnOutline]}
         onPress={() => (unlocked ? setDraft({ ...EMPTY }) : setAsking(true))}>
-        <Text style={[st.btnText, unlocked && { color: '#C2185B' }]}>
+        <Text style={[st.btnText, unlocked && { color: '#9D3438' }]}>
           {unlocked ? '+ Add service' : '🔒 Edit menu'}
         </Text>
       </Pressable>
@@ -107,15 +109,15 @@ export default function Services() {
 }
 
 const st = StyleSheet.create({
-  btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 14, alignItems: 'center' },
-  btnOutline: { backgroundColor: 'white', borderWidth: 1, borderColor: '#C2185B' },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 14, alignItems: 'center' },
+  btnOutline: { backgroundColor: 'white', borderWidth: 1, borderColor: '#9D3438' },
   btnText: { color: 'white', fontWeight: '600' },
-  cat: { fontSize: 18, fontWeight: '700', marginTop: 8 },
+  cat: { fontSize: 18, fontFamily: F.title, color: C.ink, marginTop: 8 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 14, borderRadius: 12 },
   name: { fontSize: 16, fontWeight: '500' },
   sub: { color: '#777' },
   price: { fontWeight: '600' },
   input: { backgroundColor: 'white', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#eee' },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 4 },
-  cancel: { textAlign: 'center', color: '#C2185B', padding: 8 },
+  cancel: { textAlign: 'center', color: '#9D3438', padding: 8 },
 });

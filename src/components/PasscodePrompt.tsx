@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from './AppText';
+import { C, F } from '../lib/theme';
 import { checkPasscode, hasPasscode, resetWithPassword, setPasscode } from '../lib/passcode';
 
 type Props = { visible: boolean; onSuccess: () => void; onCancel: () => void };
@@ -51,9 +53,9 @@ export default function PasscodePrompt({ visible, onSuccess, onCancel }: Props) 
 const s = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: '#0006', justifyContent: 'center', padding: 32 },
   card: { backgroundColor: 'white', borderRadius: 16, padding: 20, gap: 12 },
-  title: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
+  title: { fontSize: 18, fontFamily: F.title, color: C.ink, textAlign: 'center' },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, fontSize: 24, textAlign: 'center', letterSpacing: 8 },
-  btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 14, alignItems: 'center' },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 14, alignItems: 'center' },
   btnText: { color: 'white', fontWeight: '600' },
-  link: { textAlign: 'center', color: '#C2185B', padding: 4 },
+  link: { textAlign: 'center', color: '#9D3438', padding: 4 },
 });

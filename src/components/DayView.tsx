@@ -1,11 +1,12 @@
 import { differenceInMinutes, format, isToday, setHours, setMinutes, startOfDay } from 'date-fns';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './AppText';
 import type { AppointmentBalance } from '../lib/types';
 
 const OPEN_HOUR = 8, CLOSE_HOUR = 19;   // salon hours (24-hour clock); free gaps are only shown inside these
 const HOUR_H = 64;                      // height of one hour in the grid
 const MIN_GAP = 30;                     // shorter free gaps are left unlabeled
-const COLOR = { booked: '#C2185B', completed: '#2E7D32' } as const;
+const COLOR = { booked: '#9D3438', completed: '#2E7D32' } as const;
 
 type Props = {
   date: Date;

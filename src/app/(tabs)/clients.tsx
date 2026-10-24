@@ -1,6 +1,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../../components/AppText';
 import LoadError from '../../components/LoadError';
 import { supabase } from '../../lib/supabase';
 import type { Client } from '../../lib/types';
@@ -22,7 +23,7 @@ export default function Clients() {
   useFocusEffect(useCallback(() => { load(q); }, [load, q]));
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#FFF7FA' }}>
+    <View style={{ flex: 1, backgroundColor: '#FFFCF9' }}>
       <View style={s.top}>
         <TextInput style={s.search} placeholder="Search name or phone" value={q} onChangeText={setQ} />
         <Pressable style={s.add} onPress={() => router.push('/client/new')}><Text style={s.addText}>+</Text></Pressable>
@@ -43,7 +44,7 @@ export default function Clients() {
 const s = StyleSheet.create({
   top: { flexDirection: 'row', gap: 8, padding: 16, paddingBottom: 0 },
   search: { flex: 1, backgroundColor: 'white', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#eee' },
-  add: { width: 48, borderRadius: 10, backgroundColor: '#C2185B', alignItems: 'center', justifyContent: 'center' },
+  add: { width: 48, borderRadius: 10, backgroundColor: '#9D3438', alignItems: 'center', justifyContent: 'center' },
   addText: { color: 'white', fontSize: 24 },
   row: { backgroundColor: 'white', padding: 14, borderRadius: 12 },
   name: { fontSize: 16, fontWeight: '500' },

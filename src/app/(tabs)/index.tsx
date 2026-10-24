@@ -1,7 +1,9 @@
 import { addDays, addMonths, format, isPast, isToday, startOfMonth, subMonths } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../../components/AppText';
+import { C, F } from '../../lib/theme';
 import { BarChart } from 'react-native-gifted-charts';
 import LoadError from '../../components/LoadError';
 import StatCard from '../../components/StatCard';
@@ -12,7 +14,13 @@ import { rangeFor, Sales, salesBetween } from '../../lib/sales';
 import { supabase } from '../../lib/supabase';
 import type { AppointmentBalance, Client } from '../../lib/types';
 
-const GREEN = '#2E7D32', PINK = '#F48FB1';
+const GREEN = '#2E7D32', PINK = '#E3B8B7';
+const OWNER = 'Krystal';
+
+function greeting(d = new Date()) {
+  const h = d.getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
 
 export default function Dashboard() {
   const [today, setToday] = useState<Sales | null>(null);
@@ -84,11 +92,12 @@ export default function Dashboard() {
 
   return (
     <ScrollView contentContainerStyle={s.page} refreshControl={refresh}>
+      <Text style={s.hello}>{greeting()}, {OWNER}</Text>
       <Text style={s.date}>{format(new Date(), 'EEEE d MMMM')}</Text>
 
       <View style={s.grid}>
         <StatCard label="Today received" value={TTD(today?.actual ?? 0)} color={GREEN} />
-        <StatCard label="Today still due" value={TTD(today?.potential ?? 0)} color="#C2185B" />
+        <StatCard label="Today still due" value={TTD(today?.potential ?? 0)} color="#9D3438" />
         <StatCard label="Week received" value={TTD(week?.actual ?? 0)} color={GREEN} />
         <StatCard label="Week expected" value={TTD(week?.expected ?? 0)} />
       </View>
@@ -102,7 +111,7 @@ export default function Dashboard() {
             <Text style={{ fontWeight: '600' }}>{a.client_name}</Text>
             <Text style={s.muted}>{a.service_name}</Text>
           </View>
-          <Text style={{ color: Number(a.balance) > 0 ? '#C2185B' : GREEN, fontWeight: '600' }}>
+          <Text style={{ color: Number(a.balance) > 0 ? '#9D3438' : GREEN, fontWeight: '600' }}>
             {Number(a.balance) > 0 ? `owes ${TTD(Number(a.balance))}` : 'paid'}
           </Text>
         </Pressable>
@@ -128,7 +137,7 @@ export default function Dashboard() {
         <View key={c.id} style={s.row}>
           <Pressable style={{ flex: 1 }} onPress={() => router.push(`/client/${c.id}`)}>
             <Text style={{ fontWeight: '600' }}>🎂 {c.full_name}</Text>
-            <Text style={{ color: isToday(date) ? '#C2185B' : '#777' }}>
+            <Text style={{ color: isToday(date) ? '#9D3438' : '#777' }}>
               {isToday(date) ? 'Today' : format(date, 'EEE d MMM')}{turning ? ` · turning ${turning}` : ''}
             </Text>
           </Pressable>
@@ -169,10 +178,11 @@ export default function Dashboard() {
 }
 
 const s = StyleSheet.create({
-  page: { padding: 16, gap: 10, backgroundColor: '#FFF7FA' },
-  date: { fontSize: 22, fontWeight: '700' },
+  page: { padding: 16, gap: 10, backgroundColor: '#FFFCF9' },
+  hello: { fontFamily: F.script, fontSize: 38, lineHeight: 50, color: C.gold },
+  date: { fontSize: 22, fontFamily: F.title, color: C.ink },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  h: { fontWeight: '700', fontSize: 17, marginTop: 8 },
+  h: { fontFamily: F.title, color: C.ink, fontSize: 17, marginTop: 8 },
   muted: { color: '#777' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'white', padding: 12, borderRadius: 12 },
   time: { width: 80, fontWeight: '600' },

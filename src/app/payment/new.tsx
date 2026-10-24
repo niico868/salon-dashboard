@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../../components/AppText';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import { TTD } from '../../lib/money';
@@ -81,9 +82,9 @@ const s = StyleSheet.create({
   sub: { color: '#777' },
   big: { fontSize: 36, fontWeight: '700', textAlign: 'center', backgroundColor: 'white', borderRadius: 12, padding: 16 },
   row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: { borderWidth: 1, borderColor: '#C2185B', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: 'white' },
-  on: { backgroundColor: '#C2185B' },
+  chip: { borderWidth: 1, borderColor: '#9D3438', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: 'white' },
+  on: { backgroundColor: '#9D3438' },
   in: { backgroundColor: 'white', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#eee' },
-  btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 16, alignItems: 'center' },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 16, alignItems: 'center' },
   btnText: { color: 'white', fontWeight: '600' },
 });

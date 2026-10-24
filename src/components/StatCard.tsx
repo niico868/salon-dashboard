@@ -1,4 +1,5 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from './AppText';
 
 export default function StatCard({ label, value, color = '#222' }: { label: string; value: string; color?: string }) {
   return (

@@ -1,7 +1,9 @@
 import { format } from 'date-fns';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../components/AppText';
+import { C, F } from '../../lib/theme';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import { shareAppointmentInvoice, shareClientStatement } from '../../lib/invoice';
@@ -93,15 +95,15 @@ const Stat = ({ label, value }: { label: string; value: string }) => (
 );
 
 const s = StyleSheet.create({
-  name: { fontSize: 24, fontWeight: '700' },
+  name: { fontSize: 24, fontFamily: F.title, color: C.ink },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   act: { backgroundColor: 'white', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#eee' },
   stats: { flexDirection: 'row', gap: 8 },
   stat: { flex: 1, backgroundColor: 'white', borderRadius: 12, padding: 12, gap: 4 },
   card: { backgroundColor: 'white', borderRadius: 12, padding: 14, gap: 4 },
-  h: { fontWeight: '700', fontSize: 16 },
+  h: { fontFamily: F.title, color: C.ink, fontSize: 16 },
   visit: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pdf: { color: '#C2185B', fontWeight: '600' },
-  btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 14, alignItems: 'center' },
+  pdf: { color: '#9D3438', fontWeight: '600' },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 14, alignItems: 'center' },
   btnText: { color: 'white', fontWeight: '600' },
 });

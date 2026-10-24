@@ -1,7 +1,8 @@
 import { addWeeks, format } from 'date-fns';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../../components/AppText';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import { supabase } from '../../lib/supabase';
@@ -69,7 +70,7 @@ const s = StyleSheet.create({
   multi: { minHeight: 80, textAlignVertical: 'top' },
   label: { fontWeight: '600', marginTop: 4 },
   chips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: { backgroundColor: 'white', borderWidth: 1, borderColor: '#C2185B', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
+  chip: { backgroundColor: 'white', borderWidth: 1, borderColor: '#9D3438', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
   btnText: { color: 'white', fontWeight: '600' },
 });

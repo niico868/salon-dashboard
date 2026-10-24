@@ -1,7 +1,9 @@
 import { addMinutes, differenceInMinutes, format } from 'date-fns';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Text } from '../../components/AppText';
+import { C, F } from '../../lib/theme';
 import DateTimeField from '../../components/DateTimeField';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
@@ -71,14 +73,14 @@ export default function AppointmentDetail() {
                 <Pressable onPress={() => markPaid(p.id)}><Text style={{ color: '#2E7D32', fontWeight: '600' }}>Mark paid</Text></Pressable>
                 {p.payment_url && (
                   <Pressable onPress={() => Share.share({ message: `Your payment link: ${p.payment_url}` })}>
-                    <Text style={{ color: '#C2185B' }}>Resend</Text></Pressable>
+                    <Text style={{ color: '#9D3438' }}>Resend</Text></Pressable>
                 )}
               </>
             )}
           </View>
         ))}
         {a.status !== 'cancelled' && (
-          <Pressable onPress={() => shareAppointmentInvoice(a.id)}><Text style={{ color: '#C2185B', fontWeight: '600' }}>Invoice PDF</Text></Pressable>
+          <Pressable onPress={() => shareAppointmentInvoice(a.id)}><Text style={{ color: '#9D3438', fontWeight: '600' }}>Invoice PDF</Text></Pressable>
         )}
       </View>
 
@@ -98,18 +100,18 @@ export default function AppointmentDetail() {
         </View>
       )}
       {a.status !== 'booked' && (
-        <Pressable onPress={() => setStatus('booked')}><Text style={{ color: '#C2185B', textAlign: 'center' }}>Undo (back to booked)</Text></Pressable>
+        <Pressable onPress={() => setStatus('booked')}><Text style={{ color: '#9D3438', textAlign: 'center' }}>Undo (back to booked)</Text></Pressable>
       )}
-      <Pressable onPress={() => router.push(`/client/${a.client_id}`)}><Text style={{ color: '#C2185B', textAlign: 'center' }}>View client</Text></Pressable>
+      <Pressable onPress={() => router.push(`/client/${a.client_id}`)}><Text style={{ color: '#9D3438', textAlign: 'center' }}>View client</Text></Pressable>
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  title: { fontSize: 22, fontWeight: '700' },
+  title: { fontSize: 22, fontFamily: F.title, color: C.ink },
   sub: { color: '#777' },
   card: { backgroundColor: 'white', borderRadius: 12, padding: 14, gap: 4 },
-  btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 14, alignItems: 'center' },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 14, alignItems: 'center' },
   btnText: { color: 'white', fontWeight: '600' },
   row: { flexDirection: 'row', gap: 8 },
   small: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center' },

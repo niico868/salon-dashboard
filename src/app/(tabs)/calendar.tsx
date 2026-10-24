@@ -1,7 +1,9 @@
 import { addDays, endOfMonth, format, startOfMonth } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../../components/AppText';
+import { C, F } from '../../lib/theme';
 import { Calendar } from 'react-native-calendars';
 import DayView from '../../components/DayView';
 import LoadError from '../../components/LoadError';
@@ -9,7 +11,7 @@ import { TTD } from '../../lib/money';
 import { supabase } from '../../lib/supabase';
 import type { AppointmentBalance } from '../../lib/types';
 
-const COLOR = { booked: '#C2185B', completed: '#2E7D32', cancelled: '#9E9E9E', no_show: '#9E9E9E' } as const;
+const COLOR = { booked: '#9D3438', completed: '#2E7D32', cancelled: '#9E9E9E', no_show: '#9E9E9E' } as const;
 const dayKey = (iso: string) => format(new Date(iso), 'yyyy-MM-dd');
 
 export default function CalendarTab() {
@@ -38,7 +40,7 @@ export default function CalendarTab() {
       m[k] ??= { dots: [] };
       if (m[k].dots.length < 3) m[k].dots.push({ key: a.id, color: COLOR[a.status] });
     }
-    m[selected] = { ...(m[selected] ?? { dots: [] }), selected: true, selectedColor: '#F8BBD0' };
+    m[selected] = { ...(m[selected] ?? { dots: [] }), selected: true, selectedColor: '#E3B8B7' };
     return m;
   }, [appts, selected]);
 
@@ -52,7 +54,7 @@ export default function CalendarTab() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#FFF7FA' }}>
+    <View style={{ flex: 1, backgroundColor: '#FFFCF9' }}>
       <View style={s.seg}>
         {(['month', 'day'] as const).map((m) => (
           <Pressable key={m} style={[s.segBtn, mode === m && s.segOn]} onPress={() => setMode(m)}>
@@ -80,7 +82,7 @@ export default function CalendarTab() {
         <Calendar current={format(month, 'yyyy-MM-dd')} markingType="multi-dot" markedDates={marked}
           onDayPress={(d) => setSelected(d.dateString)}
           onMonthChange={(d) => setMonth(new Date(d.year, d.month - 1, 1))}
-          theme={{ todayTextColor: '#C2185B', arrowColor: '#C2185B' }} />
+          theme={{ todayTextColor: '#9D3438', arrowColor: '#9D3438' }} />
         <FlatList data={today} keyExtractor={(a) => a.id} contentContainerStyle={{ padding: 16, gap: 8 }}
           ListHeaderComponent={
             <View style={{ gap: 8 }}>
@@ -110,12 +112,12 @@ export default function CalendarTab() {
 const s = StyleSheet.create({
   seg: { flexDirection: 'row', backgroundColor: 'white', borderRadius: 10, padding: 4, margin: 12, marginBottom: 4 },
   segBtn: { flex: 1, padding: 8, alignItems: 'center', borderRadius: 8 },
-  segOn: { backgroundColor: '#C2185B' },
+  segOn: { backgroundColor: '#9D3438' },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
-  arrow: { fontSize: 32, color: '#C2185B', paddingHorizontal: 12 },
-  h: { fontWeight: '700', fontSize: 16, marginBottom: 4 },
+  arrow: { fontSize: 32, color: '#9D3438', paddingHorizontal: 12 },
+  h: { fontFamily: F.title, color: C.ink, fontSize: 16, marginBottom: 4 },
   row: { flexDirection: 'row', gap: 12, backgroundColor: 'white', padding: 12, borderRadius: 12, borderLeftWidth: 4 },
   time: { width: 70, fontWeight: '600' },
   fab: { position: 'absolute', right: 20, bottom: 20, width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#C2185B', alignItems: 'center', justifyContent: 'center', elevation: 4 },
+    backgroundColor: '#9D3438', alignItems: 'center', justifyContent: 'center', elevation: 4 },
 });

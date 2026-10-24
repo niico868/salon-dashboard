@@ -21,13 +21,13 @@ function page(title: string, body: string) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
     @page { margin: 18mm; }
     body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #222; font-size: 12px; }
-    .top { display: flex; justify-content: space-between; border-bottom: 3px solid #C2185B; padding-bottom: 12px; }
-    .salon { font-size: 20px; font-weight: 700; color: #C2185B; }
+    .top { display: flex; justify-content: space-between; border-bottom: 3px solid #9D3438; padding-bottom: 12px; }
+    .salon { font-size: 20px; font-weight: 700; color: #9D3438; }
     .muted { color: #777; }
     h1 { font-size: 22px; margin: 0; text-align: right; }
     .cols { display: flex; justify-content: space-between; margin: 20px 0; }
     table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    th { text-align: left; background: #FCE4EC; padding: 8px; }
+    th { text-align: left; background: #F8E2E1; padding: 8px; }
     td { padding: 8px; border-bottom: 1px solid #eee; }
     .r { text-align: right; }
     .totals { margin-left: auto; width: 260px; margin-top: 14px; }

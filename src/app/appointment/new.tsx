@@ -1,7 +1,9 @@
 import { addMinutes, setHours, setMinutes } from 'date-fns';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../../components/AppText';
+import { C, F } from '../../lib/theme';
 import DateTimeField from '../../components/DateTimeField';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
@@ -102,14 +104,14 @@ export default function BookAppointment() {
 }
 
 const s = StyleSheet.create({
-  h: { fontWeight: '700', fontSize: 16, marginTop: 4 },
+  h: { fontFamily: F.title, color: C.ink, fontSize: 16, marginTop: 4 },
   in: { backgroundColor: 'white', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#eee' },
   opt: { backgroundColor: 'white', padding: 12, borderRadius: 8 },
-  picked: { backgroundColor: '#F8BBD0', padding: 12, borderRadius: 10 },
-  link: { color: '#C2185B', padding: 4 },
+  picked: { backgroundColor: '#E3B8B7', padding: 12, borderRadius: 10 },
+  link: { color: '#9D3438', padding: 4 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { backgroundColor: 'white', borderWidth: 1, borderColor: '#C2185B', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
-  chipOn: { backgroundColor: '#C2185B' },
-  btn: { backgroundColor: '#C2185B', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
+  chip: { backgroundColor: 'white', borderWidth: 1, borderColor: '#9D3438', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
+  chipOn: { backgroundColor: '#9D3438' },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
   btnText: { color: 'white', fontWeight: '600' },
 });
