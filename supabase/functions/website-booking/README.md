@@ -76,8 +76,9 @@ Answers: `201` booked or saved · `400` bad input (message says what) · `409` t
 >    Offer start times every 30 minutes between 8:00 AM and 7:00 PM (Trinidad time, UTC-4). Hide any time where
 >    the chosen service (start + duration_min) would overlap a busy period, would end after 7:00 PM, or is in the past.
 > 3. Form fields: full name (required), phone (required), email (optional), notes (optional), and a hidden
->    text input named `company` that real users never see (leave it empty; it's a spam trap).
-> 4. On submit, `POST` JSON `{ name, phone, email, notes, company, service_id, starts_at }` with `starts_at` as an
+>    text input named `mk_hp` that real users never see (leave it empty; it's a spam trap). Don't call it
+>    `company` or anything like a real field: browsers autofill those and real bookings get dropped.
+> 4. On submit, `POST` JSON `{ name, phone, email, notes, mk_hp, service_id, starts_at }` with `starts_at` as an
 >    ISO string including the `-04:00` offset, e.g. `2026-10-20T14:00:00-04:00`.
 > 5. On `201`, show a confirmation with the service, date and time. On `409`, say the time was just taken and
 >    refresh the available times. On `400`, show the `error` message from the response. On anything else, ask them

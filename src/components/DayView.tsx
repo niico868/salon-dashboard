@@ -95,7 +95,7 @@ export default function DayView({ date, appts, onPressAppt, onPressSlot }: Props
               <Text style={s.apptName} numberOfLines={1}>{a.client_name}</Text>
               {end - start >= 40 && (
                 <Text style={s.apptSub} numberOfLines={1}>
-                  {format(new Date(a.starts_at), 'h:mm')}–{format(new Date(a.ends_at), 'h:mm a')} · {a.service_name}
+                  {format(new Date(a.starts_at), 'h:mm a')} – {format(new Date(a.ends_at), 'h:mm a')} · {a.service_name}
                 </Text>
               )}
             </Pressable>

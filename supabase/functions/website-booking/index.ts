@@ -95,8 +95,13 @@ Deno.serve(async (req) => {
 
     const b = await req.json().catch(() => null);
     if (!b || typeof b !== 'object') return reply(400, { error: 'Send a JSON body' });
-    // Hidden form field that people leave empty and spam bots fill in
-    if (b.company) return reply(201, { ok: true });
+    // Spam trap: a hidden field that people never see and bots fill in. It used to be called `company`,
+    // but browsers autofill that name from saved addresses, so real customers were silently dropped.
+    // `company` is now ignored; the website sends the trap as `mk_hp`, which no browser autofills.
+    if (b.mk_hp) {
+      console.warn('Spam trap filled, request ignored:', JSON.stringify({ type: b.type ?? 'booking', name: b.name, origin }));
+      return reply(201, { ok: true });
+    }
 
     // Messages from the contact / consultation / treatment-finder / visiting forms.
     // These have no service or time, so they are saved for the owner to follow up rather than booked.
