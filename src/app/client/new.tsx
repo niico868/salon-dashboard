@@ -11,8 +11,11 @@ const blank = { full_name: '', phone: '', email: '', birthday: '', preferences: 
   follow_up_date: '', follow_up_note: '' };
 
 export default function ClientForm() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const [f, setF] = useState(blank);
+  // Coming from a website enquiry: start with their details and link the enquiry once saved
+  const { id, name, phone, email, notes, enquiry } =
+    useLocalSearchParams<{ id?: string; name?: string; phone?: string; email?: string; notes?: string; enquiry?: string }>();
+  const [f, setF] = useState(() => id ? blank
+    : { ...blank, full_name: name ?? '', phone: phone ?? '', email: email ?? '', notes: notes ?? '' });
   const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(() => {
@@ -32,10 +35,14 @@ export default function ClientForm() {
     if (!f.full_name.trim()) return Alert.alert('Name is required');
     if (f.birthday && !/^\d{4}-\d{2}-\d{2}$/.test(f.birthday)) return Alert.alert('Birthday must look like 1990-05-21');
     const row = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.trim() || null]));
-    const { error } = id
-      ? await supabase.from('clients').update(row).eq('id', id)
-      : await supabase.from('clients').insert(row);
-    if (error) return Alert.alert('Save failed', error.message);
+    if (id) {
+      const { error } = await supabase.from('clients').update(row).eq('id', id);
+      if (error) return Alert.alert('Save failed', error.message);
+    } else {
+      const { data, error } = await supabase.from('clients').insert(row).select('id').single();
+      if (error) return Alert.alert('Save failed', error.message);
+      if (enquiry) await supabase.from('enquiries').update({ client_id: data.id }).eq('id', enquiry);
+    }
     router.back();
   }
 

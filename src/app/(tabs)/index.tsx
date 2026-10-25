@@ -1,4 +1,4 @@
-import { addDays, addMonths, format, isPast, isToday, startOfMonth, subMonths } from 'date-fns';
+import { addDays, addMonths, format, formatDistanceToNowStrict, isPast, isToday, startOfMonth, subMonths } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -12,10 +12,13 @@ import { TTD } from '../../lib/money';
 import { waLink } from '../../lib/phone';
 import { rangeFor, Sales, salesBetween } from '../../lib/sales';
 import { supabase } from '../../lib/supabase';
-import type { AppointmentBalance, Client } from '../../lib/types';
+import type { AppointmentBalance, Client, Enquiry } from '../../lib/types';
 
 const GREEN = '#2E7D32', PINK = '#E3B8B7';
 const OWNER = 'Krystal';
+const SOURCE: Record<Enquiry['source'], string> = {
+  contact: 'Contact form', consultation: 'Consultation', 'treatment-finder': 'Treatment finder', visit: 'Visiting', other: 'Website',
+};
 
 function greeting(d = new Date()) {
   const h = d.getHours();
@@ -32,6 +35,8 @@ export default function Dashboard() {
   const [months, setMonths] = useState<{ label: string; value: number }[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // null = couldn't load (e.g. the enquiries table isn't set up yet); the rest of Home still shows
+  const [enquiries, setEnquiries] = useState<Enquiry[] | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -67,7 +72,26 @@ export default function Dashboard() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const loadEnquiries = useCallback(async () => {
+    const { data, error } = await supabase.from('enquiries').select('*').eq('status', 'new')
+      .order('created_at', { ascending: false }).limit(20);
+    setEnquiries(error ? null : (data as Enquiry[]));
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); loadEnquiries(); }, [load, loadEnquiries]));
+
+  async function enquiryDone(id: string) {
+    const { error } = await supabase.from('enquiries').update({ status: 'done', handled_at: new Date().toISOString() }).eq('id', id);
+    if (error) return Alert.alert('Update failed', error.message);
+    loadEnquiries();
+  }
+
+  function addAsClient(e: Enquiry) {
+    router.push({ pathname: '/client/new', params: {
+      name: e.name, phone: e.phone ?? '', email: e.email ?? '', enquiry: e.id,
+      notes: `Website enquiry (${SOURCE[e.source]}): ${e.message}`.slice(0, 500),
+    } });
+  }
 
   async function clearFollowUp(id: string) {
     const { error } = await supabase.from('clients').update({ follow_up_date: null, follow_up_note: null }).eq('id', id);
@@ -80,7 +104,7 @@ export default function Dashboard() {
     stacks: [{ value: d.actual, color: GREEN }, { value: d.potential, color: PINK }],
   }));
 
-  const refresh = <RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />;
+  const refresh = <RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await Promise.all([load(), loadEnquiries()]); setRefreshing(false); }} />;
 
   // Show the retry card instead of TT$0.00 tiles that look like real figures
   if (loadError) return (
@@ -101,6 +125,43 @@ export default function Dashboard() {
         <StatCard label="Week received" value={TTD(week?.actual ?? 0)} color={GREEN} />
         <StatCard label="Week expected" value={TTD(week?.expected ?? 0)} />
       </View>
+
+      {enquiries && (
+        <>
+          <Text style={s.h}>Website enquiries{enquiries.length ? ` · ${enquiries.length}` : ''}</Text>
+          {enquiries.length === 0 && <Text style={s.muted}>No new messages from the website.</Text>}
+          {enquiries.map((e) => (
+            <View key={e.id} style={s.enquiry}>
+              <Pressable disabled={!e.client_id} onPress={() => router.push(`/client/${e.client_id}`)}>
+                <Text style={{ fontWeight: '600' }}>{e.name}{e.client_id ? '  ›' : ''}</Text>
+                <Text style={s.muted}>
+                  {SOURCE[e.source]} · {formatDistanceToNowStrict(new Date(e.created_at), { addSuffix: true })}
+                  {e.client_id ? ' · existing client' : ' · new'}
+                </Text>
+              </Pressable>
+              {!!e.message && <Text numberOfLines={4}>{e.message}</Text>}
+              <View style={s.actions}>
+                {e.phone ? (
+                  <Pressable onPress={() => Linking.openURL(waLink(e.phone!,
+                    `Hi ${e.name.split(' ')[0]}, thank you for reaching out to Melt Aways! `))}>
+                    <Text style={{ color: GREEN, fontWeight: '600' }}>WhatsApp</Text>
+                  </Pressable>
+                ) : e.email ? (
+                  <Pressable onPress={() => Linking.openURL(`mailto:${e.email}?subject=${encodeURIComponent('Your Melt Aways enquiry')}`)}>
+                    <Text style={{ color: GREEN, fontWeight: '600' }}>Email</Text>
+                  </Pressable>
+                ) : null}
+                {!e.client_id && (
+                  <Pressable onPress={() => addAsClient(e)}><Text style={{ color: C.primary, fontWeight: '600' }}>Add client</Text></Pressable>
+                )}
+                <Pressable onPress={() => enquiryDone(e.id)} style={{ marginLeft: 'auto' }}>
+                  <Text style={{ color: C.muted, fontWeight: '600' }}>Done</Text>
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </>
+      )}
 
       <Text style={s.h}>Today · {todayList.length} booking{todayList.length === 1 ? '' : 's'}</Text>
       {todayList.length === 0 && <Text style={s.muted}>Nothing booked today.</Text>}
@@ -187,4 +248,6 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'white', padding: 12, borderRadius: 12 },
   time: { width: 80, fontWeight: '600' },
   card: { backgroundColor: 'white', borderRadius: 12, padding: 12, gap: 6 },
+  enquiry: { backgroundColor: 'white', borderRadius: 12, padding: 12, gap: 6, borderLeftWidth: 3, borderLeftColor: C.rose },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 2 },
 });

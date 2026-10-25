@@ -59,11 +59,20 @@ app's **Supabase** database, so they appear in the app's calendar like any other
   taken from `src/lib/types.ts`.
 - **New appointments default to `status = 'booked'`.** The function doesn't set a status, just like
   the app. If website bookings don't show up as booked, that's the first thing to check.
-- **There are no owner/user-id columns.** The function writes with the server secret key, which
-  bypasses row-level security. If inserts fail on a missing owner column, that's why.
+- **Owner column (corrected 25 Oct 2026).** The tutorial gives every table an `owner_id` that
+  defaults to the logged-in user, with "owner only" security. The function isn't logged in, so it now
+  needs the `OWNER_ID` secret (Krystal's User UID) and stamps every insert with it. It also only reads
+  that owner's services, busy times and clients, so the test account's data is ignored.
 - **The Deno function code has never been typechecked or run.** It's excluded from the app's
   `tsc`/lint on purpose. The first deploy and `curl` test is its real test.
 - **Timezone is Trinidad (`-04:00`).** It can be changed with the `SALON_UTC_OFFSET` secret.
+
+## Website enquiries (added 25 Oct 2026)
+
+The site's contact, consultation, treatment-finder and visiting forms already POST
+`{ type: "enquiry", source, name, phone, email, message }` to this function. They used to be rejected
+(400, no service or time) without anyone noticing. Now they're saved to the `enquiries` table
+(`supabase/sql/enquiries.sql`, run once in the SQL Editor) and listed on Home. No website changes needed.
 
 ## Good to know
 

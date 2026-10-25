@@ -4,16 +4,34 @@ The salon website calls this Edge Function. The function checks the booking, ref
 double bookings, finds or creates the client (matched by phone, then email), and adds the
 appointment. It appears in the app like any other booking, with notes starting `[Website]`.
 
+It also takes **enquiries** from the website's contact, consultation, treatment-finder and visiting
+forms (`"type": "enquiry"`). Those have no service or time, so they're saved to the `enquiries` table
+and show under **Website enquiries** on the app's Home screen, where Krystal can WhatsApp them, add them
+as a client, or tick them off.
+
 The website never holds database keys, and the public endpoint never returns client names
 or phone numbers. It only returns the service menu and which times are busy.
+
+## 0. Before deploying (once)
+
+1. **Create the enquiries table.** In Supabase, open **SQL Editor → New query**, paste everything in
+   `supabase/sql/enquiries.sql`, and click **Run**. You should see "Success. No rows returned".
+2. **Find the owner's user id.** In Supabase, open **Authentication → Users**, find Krystal's email
+   and copy her **User UID** (looks like `3f2a…-…`). Use *her* account, not your test account.
+   Every table has an `owner_id` that the app fills from whoever is logged in. The website isn't
+   logged in, so the function stamps everything with this id. Without it, bookings and enquiries
+   would fail, or land in an account nobody looks at.
 
 ## 1. Deploy (once, from this folder's project root)
 
 ```bash
 npx supabase login
 npx supabase link --project-ref <your-project-ref>        # the xxxx in https://xxxx.supabase.co
+npx supabase secrets set OWNER_ID=<Krystal's User UID>
 npx supabase functions deploy website-booking --no-verify-jwt
 ```
+
+Run the same `deploy` line again whenever `index.ts` changes.
 
 `--no-verify-jwt` is needed because website visitors aren't logged in. The function does its own checks.
 
@@ -36,7 +54,15 @@ curl -X POST "$URL" -H 'Content-Type: application/json' -d '{
   "starts_at": "2026-10-20T14:00:00-04:00", "notes": "test booking, delete me" }'
 ```
 
-Answers: `201` booked · `400` bad input (message says what) · `409` time already taken · `500` server problem.
+Test an enquiry. It should appear on the app's Home screen under **Website enquiries** after a pull to refresh:
+
+```bash
+curl -X POST "$URL" -H 'Content-Type: application/json' -d '{
+  "type": "enquiry", "source": "contact", "name": "Test Enquiry", "phone": "868 555 0000",
+  "message": "test enquiry, tick Done to clear me" }'
+```
+
+Answers: `201` booked or saved · `400` bad input (message says what) · `409` time already taken · `500` server problem.
 
 ## 3. Prompt to paste into Lovable
 
@@ -61,6 +87,7 @@ Answers: `201` booked · `400` bad input (message says what) · `409` time alrea
 
 | Secret | What it does |
 | --- | --- |
+| `OWNER_ID` | **Required.** Krystal's user id. Everything from the website is saved to her account, and only her services and bookings are used. If it's missing, the function answers `500` and its log says so. |
 | `ALLOWED_ORIGINS` | Only these websites may call the function. Leave unset to allow any site, which is fine while testing only. |
 | `SALON_UTC_OFFSET` | Time zone used for `?date=`. Default `-04:00`. |
 | `WEBSITE_BOOKING_SECRET` | Requires an `x-booking-secret` header. Use only if Lovable calls this from its own server code; a secret in browser code is visible to anyone. |
