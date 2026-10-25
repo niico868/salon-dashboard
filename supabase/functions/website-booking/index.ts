@@ -17,6 +17,10 @@
 //   ALLOWED_ORIGINS          comma-separated site URLs allowed to call this, e.g. https://mysalon.com,https://mysalon.lovable.app
 //   WEBSITE_BOOKING_SECRET   if set, callers must send it in the x-booking-secret header (only for server-to-server calls)
 //   SALON_UTC_OFFSET         defaults to -04:00 (Trinidad); used to turn ?date= into a day range
+//   VAPID_PUBLIC_KEY,        phone alerts: the owner gets a push alert for each new booking or enquiry on
+//   VAPID_PRIVATE_KEY        every phone that turned alerts on (More -> New booking alerts). Make the pair with
+//                            `npx web-push generate-vapid-keys`. Without them, bookings still work, just no alerts.
+//   VAPID_SUBJECT            contact for the push services, default mailto:meltawaystt@gmail.com
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const OFFSET = Deno.env.get('SALON_UTC_OFFSET') ?? '-04:00';
@@ -31,6 +35,52 @@ const OWNER_ID = (Deno.env.get('OWNER_ID') ?? '').trim();
 // Only this owner's rows (not a test account's) count for the menu, busy times and client matching
 const mine = <Q extends { eq: (col: string, v: string) => Q }>(q: Q): Q => q.eq('owner_id', OWNER_ID);
 const owner = () => ({ owner_id: OWNER_ID });
+
+// ---------- Phone alerts ----------
+const VAPID_PUBLIC = Deno.env.get('VAPID_PUBLIC_KEY') ?? '';
+const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY') ?? '';
+const pushReady = !!(VAPID_PUBLIC && VAPID_PRIVATE);
+
+// Loaded on first alert only, so a problem with the push library can never stop bookings
+let pushLib: Promise<typeof import('npm:web-push@3.6.7')['default']> | null = null;
+const getPush = () => (pushLib ??= import('npm:web-push@3.6.7').then(({ default: wp }) => {
+  wp.setVapidDetails(Deno.env.get('VAPID_SUBJECT') ?? 'mailto:meltawaystt@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE);
+  return wp;
+}));
+
+const salonTime = (d: Date) => new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Port_of_Spain', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+}).format(d);
+
+// Never throws: a failed alert must not fail the customer's booking
+async function alertOwner(msg: { title: string; body: string; url: string; tag: string }) {
+  if (!pushReady) return;
+  try {
+    const webpush = await getPush();
+    const subs = await db.from('push_subscriptions').select('id, endpoint, p256dh, auth').eq('owner_id', OWNER_ID);
+    if (subs.error) throw subs.error;
+    await Promise.all(subs.data.map(async (s) => {
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+          JSON.stringify(msg), { TTL: 24 * 3600, urgency: 'high' });
+      } catch (e) {
+        const code = (e as { statusCode?: number }).statusCode;
+        // 404/410: that phone turned alerts off or the app was removed; forget it
+        if (code === 404 || code === 410) await db.from('push_subscriptions').delete().eq('id', s.id);
+        else console.error('Push alert failed:', code, (e as Error).message);
+      }
+    }));
+  } catch (e) {
+    console.error('Push alerts skipped:', e);
+  }
+}
+
+// Send alerts after replying when the platform allows it, so the customer isn't kept waiting
+function inBackground(p: Promise<unknown>) {
+  const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  if (rt?.waitUntil) { rt.waitUntil(p); return Promise.resolve(); }
+  return p;
+}
 
 const allowed = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
 
@@ -49,6 +99,9 @@ const normPhone = (p: string) => { const d = p.replace(/\D/g, ''); return d.leng
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SOURCES = ['contact', 'consultation', 'treatment-finder', 'visit'];
+const SOURCE_LABEL: Record<string, string> = {
+  contact: 'Contact form', consultation: 'Consultation', 'treatment-finder': 'Treatment finder', visit: 'Visiting', other: 'Website',
+};
 
 // Find a returning client by phone, then email. Returns undefined for someone new.
 async function findClient(phone: string, email: string) {
@@ -120,12 +173,18 @@ Deno.serve(async (req) => {
       if (problems.length) return reply(400, { error: `Please check: ${problems.join(', ')}` });
 
       const client = await findClient(phone, email);
+      const source = SOURCES.includes(String(b.source)) ? String(b.source) : 'other';
       const saved = await db.from('enquiries').insert({
-        ...owner(), client_id: client?.id ?? null,
-        source: SOURCES.includes(String(b.source)) ? String(b.source) : 'other',
+        ...owner(), client_id: client?.id ?? null, source,
         name, phone: phone || null, email: email || null, message,
-      });
+      }).select('id').single();
       if (saved.error) throw saved.error;
+
+      await inBackground(alertOwner({
+        title: `New enquiry: ${name}`,
+        body: `${SOURCE_LABEL[source]}${message ? `: ${message.slice(0, 140)}` : ''}`,
+        url: '/', tag: `enq-${saved.data.id}`,
+      }));
       return reply(201, { ok: true });
     }
 
@@ -176,6 +235,11 @@ Deno.serve(async (req) => {
     }).select('id, starts_at, ends_at, service_name, price').single();
     if (appt.error) throw appt.error;
 
+    await inBackground(alertOwner({
+      title: `New booking: ${name}`,
+      body: `${svc.data.name} · ${salonTime(start)}`,
+      url: `/appointment/${appt.data.id}`, tag: `appt-${appt.data.id}`,
+    }));
     return reply(201, appt.data);
   } catch (e) {
     console.error(e);

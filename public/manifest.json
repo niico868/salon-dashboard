@@ -1,0 +1,16 @@
+{
+  "name": "Melt Aways Spa Dashboard",
+  "short_name": "Melt Aways",
+  "description": "Bookings, clients and sales for Melt Aways Spa",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFCF9",
+  "theme_color": "#FFFCF9",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

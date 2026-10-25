@@ -39,7 +39,7 @@ export default function Login() {
 const s = StyleSheet.create({
   wrap: { flex: 1, justifyContent: 'center', backgroundColor: C.bg },
   inner: { padding: 24, gap: 12, width: '100%', maxWidth: 420, alignSelf: 'center' },
-  logo: { width: 180, height: 120, alignSelf: 'center' },
+  logo: { width: 240, height: 142, alignSelf: 'center', marginBottom: 4 },
   title: { fontFamily: F.title, fontSize: 24, textAlign: 'center', marginBottom: 20, color: C.primary },
   input: { backgroundColor: 'white', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border, fontSize: 16 },
   btn: { backgroundColor: C.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 },

@@ -89,6 +89,7 @@ Answers: `201` booked or saved · `400` bad input (message says what) · `409` t
 | Secret | What it does |
 | --- | --- |
 | `OWNER_ID` | **Required.** Krystal's user id. Everything from the website is saved to her account, and only her services and bookings are used. If it's missing, the function answers `500` and its log says so. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Phone alerts for each new booking or enquiry. See `docs/PHONE-ALERTS.md`. Without them, everything works except the alerts. |
 | `ALLOWED_ORIGINS` | Only these websites may call the function. Leave unset to allow any site, which is fine while testing only. |
 | `SALON_UTC_OFFSET` | Time zone used for `?date=`. Default `-04:00`. |
 | `WEBSITE_BOOKING_SECRET` | Requires an `x-booking-secret` header. Use only if Lovable calls this from its own server code; a secret in browser code is visible to anyone. |
