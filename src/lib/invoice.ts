@@ -8,7 +8,7 @@ import { brand, colors } from './theme';
 import type { AppointmentBalance, Client, Payment } from './types';
 
 // Printed at the top of every invoice: change these to the salon's real details
-const SALON = { name: brand.name, address: 'Street, Town, Trinidad', phone: '868 000 0000', email: '' };
+const SALON = { name: Melt Aways Spa, address: '#240 Eastern Main Road, El Dorado, Trinidad and Tobago', phone: '1(868) 378-5630', email: 'meltawaystt@gmail.com' };
 
 const esc = (s: string | null | undefined) =>
   (s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
