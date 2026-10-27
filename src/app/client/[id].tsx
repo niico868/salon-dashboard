@@ -2,20 +2,14 @@ import { format } from 'date-fns';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
-import Button from '../../components/Button';
+import { Text } from '../../components/AppText';
+import { C, F } from '../../lib/theme';
 import LoadError from '../../components/LoadError';
-import PressableScale from '../../components/PressableScale';
 import Screen from '../../components/Screen';
-import { SkeletonList } from '../../components/Skeleton';
-import StatusChip from '../../components/StatusChip';
-import { useToast } from '../../components/Toast';
-import { Body, BodyStrong, Heading, Label, Title } from '../../components/Typography';
 import { shareAppointmentInvoice, shareClientStatement } from '../../lib/invoice';
 import { TTD } from '../../lib/money';
 import { waLink } from '../../lib/phone';
-import { haptic } from '../../lib/motion';
 import { supabase } from '../../lib/supabase';
-import { colors, fonts, radius, shadow, space, type } from '../../lib/theme';
 import type { AppointmentBalance, Client } from '../../lib/types';
 
 export default function ClientProfile() {
@@ -23,7 +17,6 @@ export default function ClientProfile() {
   const [c, setC] = useState<Client | null>(null);
   const [visits, setVisits] = useState<AppointmentBalance[]>([]);
   const [loadError, setLoadError] = useState(false);
-  const toast = useToast();
 
   const load = useCallback(async () => {
     const [cr, vr] = await Promise.all([
@@ -38,87 +31,79 @@ export default function ClientProfile() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (loadError) return <Screen><LoadError onRetry={load} /></Screen>;
-  if (!c) return <Screen><SkeletonList count={4} /></Screen>;
+  if (!c) return null;
   const done = visits.filter((v) => v.status === 'completed');
   const spent = visits.reduce((t, v) => t + Number(v.paid), 0);
   const owed = visits.filter((v) => v.status !== 'cancelled').reduce((t, v) => t + Math.max(0, Number(v.balance)), 0);
 
   async function remove() {
-    haptic.warning();
     Alert.alert('Delete client?', 'This also deletes their appointments.', [
       { text: 'Cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         const { error } = await supabase.from('clients').delete().eq('id', id);
         if (error) return Alert.alert('Delete failed', error.message);
-        toast.show('Client deleted');
         router.back(); } },
     ]);
   }
 
   return (
     <Screen>
-      <Title accessibilityRole="header">{c.full_name}</Title>
+      <Text style={s.name}>{c.full_name}</Text>
       <View style={s.actions}>
-        {c.phone && <Button title="Call" icon="call-outline" variant="outline" style={s.act} onPress={() => Linking.openURL(`tel:${c.phone}`)} />}
-        {c.phone && <Button title="WhatsApp" icon="logo-whatsapp" variant="outline" style={s.act} onPress={() => Linking.openURL(waLink(c.phone!))} />}
-        <Button title="Edit" icon="create-outline" variant="outline" style={s.act} onPress={() => router.push(`/client/new?id=${id}`)} />
-        {visits.length > 0 && <Button title="Statement PDF" icon="document-text-outline" variant="outline" style={s.act}
-          onPress={() => shareClientStatement(c, visits)} />}
+        {c.phone && <Pressable style={s.act} onPress={() => Linking.openURL(`tel:${c.phone}`)}><Text>Call</Text></Pressable>}
+        {c.phone && <Pressable style={s.act} onPress={() => Linking.openURL(waLink(c.phone!))}><Text>WhatsApp</Text></Pressable>}
+        <Pressable style={s.act} onPress={() => router.push(`/client/new?id=${id}`)}><Text>Edit</Text></Pressable>
+        {visits.length > 0 && <Pressable style={s.act} onPress={() => shareClientStatement(c, visits)}><Text>Statement PDF</Text></Pressable>}
       </View>
 
       <View style={s.stats}>
         <Stat label="Visits" value={String(done.length)} />
-        <Stat label="Spent" value={TTD(spent)} color={colors.success} />
-        <Stat label="Owes" value={TTD(owed)} color={owed > 0 ? colors.warning : colors.text} />
+        <Stat label="Spent" value={TTD(spent)} />
+        <Stat label="Owes" value={TTD(owed)} />
       </View>
 
       {c.follow_up_date && (
-        <View style={s.card}><Heading>Follow up {c.follow_up_date}</Heading>{c.follow_up_note ? <Body>{c.follow_up_note}</Body> : null}</View>
+        <View style={s.card}><Text style={s.h}>Follow up {c.follow_up_date}</Text><Text>{c.follow_up_note}</Text></View>
       )}
-      {c.preferences && <View style={s.card}><Heading>Preferences</Heading><Body>{c.preferences}</Body></View>}
-      {c.notes && <View style={s.card}><Heading>Notes</Heading><Body>{c.notes}</Body></View>}
+      {c.preferences && <View style={s.card}><Text style={s.h}>Preferences</Text><Text>{c.preferences}</Text></View>}
+      {c.notes && <View style={s.card}><Text style={s.h}>Notes</Text><Text>{c.notes}</Text></View>}
 
-      <Button title="Book appointment" icon="calendar-outline" onPress={() => router.push(`/appointment/new?clientId=${id}`)} />
+      <Pressable style={s.btn} onPress={() => router.push(`/appointment/new?clientId=${id}`)}>
+        <Text style={s.btnText}>Book appointment</Text>
+      </Pressable>
 
-      <Heading style={{ marginTop: space.sm }}>History</Heading>
-      {visits.length === 0 && <Label>No visits yet.</Label>}
+      <Text style={s.h}>History</Text>
       {visits.map((v) => (
         <View key={v.id} style={[s.card, s.visit]}>
-          <View style={{ flex: 1 }}>
-            <PressableScale style={{ gap: space.xs }} onPress={() => router.push(`/appointment/${v.id}`)}>
-              <BodyStrong>{v.service_name} · {TTD(Number(v.price))}</BodyStrong>
-              <Label>{format(new Date(v.starts_at), 'EEE d MMM yyyy, h:mm a')}</Label>
-              <View style={s.chips}>
-                <StatusChip status={v.status} />
-                {Number(v.balance) > 0 && v.status !== 'cancelled' && <StatusChip status="owes" label={`Owes ${TTD(Number(v.balance))}`} />}
-              </View>
-            </PressableScale>
-          </View>
+          <Pressable style={{ flex: 1, gap: 4 }} onPress={() => router.push(`/appointment/${v.id}`)}>
+            <Text style={{ fontWeight: '500' }}>{v.service_name} · {TTD(Number(v.price))}</Text>
+            <Text style={{ color: '#777' }}>{format(new Date(v.starts_at), 'EEE d MMM yyyy, h:mm a')} · {v.status}
+              {Number(v.balance) > 0 && v.status !== 'cancelled' ? ` · owes ${TTD(Number(v.balance))}` : ''}</Text>
+          </Pressable>
           {v.status !== 'cancelled' && (
-            <Pressable onPress={() => shareAppointmentInvoice(v.id)} hitSlop={8} style={s.pdf} accessibilityRole="button">
-              <Label style={s.pdfText}>Invoice</Label>
-            </Pressable>
+            <Pressable onPress={() => shareAppointmentInvoice(v.id)} hitSlop={8}><Text style={s.pdf}>Invoice</Text></Pressable>
           )}
         </View>
       ))}
-      <Button title="Delete client" icon="trash-outline" variant="danger" onPress={remove} style={{ marginTop: space.lg }} />
+      <Pressable onPress={remove}><Text style={{ color: '#B00020', textAlign: 'center', padding: 12 }}>Delete client</Text></Pressable>
     </Screen>
   );
 }
 
-const Stat = ({ label, value, color = colors.text }: { label: string; value: string; color?: string }) => (
-  <View style={s.stat}><Label>{label}</Label><Body style={[s.statValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Body></View>
+const Stat = ({ label, value }: { label: string; value: string }) => (
+  <View style={s.stat}><Text style={{ color: '#777' }}>{label}</Text><Text style={{ fontWeight: '700', fontSize: 16 }}>{value}</Text></View>
 );
 
 const s = StyleSheet.create({
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  act: { minHeight: 40, paddingHorizontal: 14 },
-  stats: { flexDirection: 'row', gap: space.sm },
-  stat: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.md, gap: space.xs, ...shadow.card },
-  statValue: { ...type.number, fontSize: 17 },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.lg, gap: space.xs, ...shadow.card },
-  visit: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  pdf: { paddingVertical: space.sm, paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.blush },
-  pdfText: { fontFamily: fonts.bodyBold, color: colors.primary },
+  name: { fontSize: 24, fontFamily: F.title, color: C.ink },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  act: { backgroundColor: 'white', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#eee' },
+  stats: { flexDirection: 'row', gap: 8 },
+  stat: { flex: 1, backgroundColor: 'white', borderRadius: 12, padding: 12, gap: 4 },
+  card: { backgroundColor: 'white', borderRadius: 12, padding: 14, gap: 4 },
+  h: { fontFamily: F.title, color: C.ink, fontSize: 16 },
+  visit: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pdf: { color: '#9D3438', fontWeight: '600' },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 14, alignItems: 'center' },
+  btnText: { color: 'white', fontWeight: '600' },
 });

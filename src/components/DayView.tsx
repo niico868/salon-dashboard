@@ -1,13 +1,12 @@
 import { differenceInMinutes, format, isToday, setHours, setMinutes, startOfDay } from 'date-fns';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, radius, space } from '../lib/theme';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './AppText';
 import type { AppointmentBalance } from '../lib/types';
 
-const OPEN_HOUR = 10, CLOSE_HOUR = 16;  // salon hours (24-hour clock); free gaps are only shown inside these
-const OPEN_DAYS = [2, 3, 4, 5, 6];      // Tuesday to Saturday (0 = Sunday); no free gaps are shown on closed days
+const OPEN_HOUR = 8, CLOSE_HOUR = 19;   // salon hours (24-hour clock); free gaps are only shown inside these
 const HOUR_H = 64;                      // height of one hour in the grid
 const MIN_GAP = 30;                     // shorter free gaps are left unlabeled
-const COLOR = { booked: colors.primary, completed: colors.success } as const;
+const COLOR = { booked: '#9D3438', completed: '#2E7D32' } as const;
 
 type Props = {
   date: Date;
@@ -51,14 +50,12 @@ export default function DayView({ date, appts, onPressAppt, onPressSlot }: Props
 
   // Free time between bookings, within opening hours
   const gaps: { start: number; end: number }[] = [];
-  if (OPEN_DAYS.includes(day.getDay())) {
-    let cursor = OPEN_HOUR * 60;
-    for (const it of items) {
-      if (it.start - cursor >= MIN_GAP) gaps.push({ start: cursor, end: Math.min(it.start, CLOSE_HOUR * 60) });
-      cursor = Math.max(cursor, it.end);
-    }
-    if (CLOSE_HOUR * 60 - cursor >= MIN_GAP) gaps.push({ start: cursor, end: CLOSE_HOUR * 60 });
+  let cursor = OPEN_HOUR * 60;
+  for (const it of items) {
+    if (it.start - cursor >= MIN_GAP) gaps.push({ start: cursor, end: Math.min(it.start, CLOSE_HOUR * 60) });
+    cursor = Math.max(cursor, it.end);
   }
+  if (CLOSE_HOUR * 60 - cursor >= MIN_GAP) gaps.push({ start: cursor, end: CLOSE_HOUR * 60 });
   const freeMin = gaps.filter((g) => g.end - g.start >= MIN_GAP).reduce((t, g) => t + g.end - g.start, 0);
 
   const now = mins(new Date(), day);
@@ -98,7 +95,7 @@ export default function DayView({ date, appts, onPressAppt, onPressSlot }: Props
               <Text style={s.apptName} numberOfLines={1}>{a.client_name}</Text>
               {end - start >= 40 && (
                 <Text style={s.apptSub} numberOfLines={1}>
-                  {format(new Date(a.starts_at), 'h:mm')}–{format(new Date(a.ends_at), 'h:mm a')} · {a.service_name}
+                  {format(new Date(a.starts_at), 'h:mm a')} – {format(new Date(a.ends_at), 'h:mm a')} · {a.service_name}
                 </Text>
               )}
             </Pressable>
@@ -114,19 +111,19 @@ export default function DayView({ date, appts, onPressAppt, onPressSlot }: Props
 
 const LABEL_W = 56;
 const s = StyleSheet.create({
-  summary: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.textMuted, paddingHorizontal: space.lg, paddingVertical: space.sm },
+  summary: { color: '#777', paddingHorizontal: 16, paddingVertical: 8 },
   hour: { position: 'absolute', left: 0, right: 0, height: HOUR_H, flexDirection: 'row' },
-  hourLabel: { width: LABEL_W, textAlign: 'right', paddingRight: space.sm, fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: -7 },
-  slots: { flex: 1, borderTopWidth: 1, borderTopColor: colors.border, marginRight: space.sm },
+  hourLabel: { width: LABEL_W, textAlign: 'right', paddingRight: 8, fontSize: 11, color: '#999', marginTop: -7 },
+  slots: { flex: 1, borderTopWidth: 1, borderTopColor: '#eee', marginRight: 8 },
   slot: { flex: 1 },
-  half: { borderTopWidth: 1, borderTopColor: colors.chartGrid },
-  lane: { position: 'absolute', top: 0, bottom: 0, left: LABEL_W, right: space.sm, pointerEvents: 'box-none' },
-  gap: { position: 'absolute', left: 0, right: 0, pointerEvents: 'none', borderRadius: radius.sm, borderWidth: 1, borderStyle: 'dashed',
-    borderColor: colors.success, backgroundColor: colors.successBg, justifyContent: 'center', alignItems: 'center' },
-  gapText: { fontFamily: fonts.bodyBold, color: colors.success, fontSize: 12 },
-  appt: { position: 'absolute', backgroundColor: colors.surface, borderRadius: radius.sm, borderLeftWidth: 4, paddingHorizontal: space.sm,
-    paddingVertical: space.xs, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  apptName: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
-  apptSub: { fontFamily: fonts.body, color: colors.textMuted, fontSize: 12 },
-  now: { position: 'absolute', pointerEvents: 'none', left: -4, right: 0, height: 2, backgroundColor: colors.danger },
+  half: { borderTopWidth: 1, borderTopColor: '#f6f6f6' },
+  lane: { position: 'absolute', top: 0, bottom: 0, left: LABEL_W, right: 8, pointerEvents: 'box-none' },
+  gap: { position: 'absolute', left: 0, right: 0, pointerEvents: 'none', borderRadius: 8, borderWidth: 1, borderStyle: 'dashed',
+    borderColor: '#A5D6A7', backgroundColor: '#F1F8E9', justifyContent: 'center', alignItems: 'center' },
+  gapText: { color: '#558B2F', fontSize: 12, fontWeight: '600' },
+  appt: { position: 'absolute', backgroundColor: 'white', borderRadius: 8, borderLeftWidth: 4, paddingHorizontal: 8,
+    paddingVertical: 4, borderWidth: 1, borderColor: '#f0f0f0', overflow: 'hidden' },
+  apptName: { fontWeight: '600', fontSize: 13 },
+  apptSub: { color: '#777', fontSize: 12 },
+  now: { position: 'absolute', pointerEvents: 'none', left: -4, right: 0, height: 2, backgroundColor: '#E53935' },
 });

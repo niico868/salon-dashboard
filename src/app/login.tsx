@@ -1,12 +1,9 @@
+import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
 import { supabase } from '../lib/supabase';
-import { brand, colors, space } from '../lib/theme';
-import Logo from '../components/Logo';
-import Field from '../components/Field';
-import Button from '../components/Button';
-import FadeInView from '../components/FadeInView';
-import { Small, Title } from '../components/Typography';
+import { C, F } from '../lib/theme';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -21,27 +18,30 @@ export default function Login() {
   }
 
   return (
-    <KeyboardAvoidingView style={s.page} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <FadeInView style={s.logo}>
-        <Logo width={220} />
-        <Title style={s.appName} accessibilityRole="header">{brand.appName}</Title>
-      </FadeInView>
-      <FadeInView index={1} style={s.card}>
-        <Field label="Email" placeholder="you@example.com" autoCapitalize="none" keyboardType="email-address"
+    <KeyboardAvoidingView style={s.wrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={s.inner}>
+        <Image source={require('../../assets/images/melt-aways-logo.png')} style={s.logo} contentFit="contain"
+          accessibilityLabel="Melt Aways" />
+        <Text style={s.title}>Melt Aways Spa Dashboard</Text>
+        <TextInput style={s.input} placeholder="Email" autoCapitalize="none" keyboardType="email-address"
           autoComplete="email" value={email} onChangeText={setEmail} />
-        <Field label="Password" placeholder="Your password" secureTextEntry autoComplete="password"
+        <TextInput style={s.input} placeholder="Password" secureTextEntry autoComplete="password"
           value={password} onChangeText={setPassword} onSubmitEditing={signIn} />
-        <Button title="Sign in" onPress={signIn} loading={busy} style={{ marginTop: space.sm }} />
-      </FadeInView>
-      <View style={{ alignItems: 'center' }}><Small style={{ fontStyle: 'italic' }}>{brand.tagline}</Small></View>
+        <Pressable style={({ pressed }) => [s.btn, (busy || pressed) && { opacity: busy ? 0.5 : 0.85 }]}
+          disabled={busy} onPress={signIn}>
+          <Text style={s.btnText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
+        </Pressable>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  page: { flex: 1, justifyContent: 'center', padding: space.xl, gap: space.xl, backgroundColor: colors.background },
-  logo: { alignItems: 'center', gap: space.md },
-  appName: { fontSize: 24, textAlign: 'center', color: colors.text },
-  card: { backgroundColor: colors.surface, borderRadius: 20, padding: space.xl, gap: space.lg,
-    shadowColor: colors.primary, shadowOpacity: 0.1, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
+  wrap: { flex: 1, justifyContent: 'center', backgroundColor: C.bg },
+  inner: { padding: 24, gap: 12, width: '100%', maxWidth: 420, alignSelf: 'center' },
+  logo: { width: 240, height: 142, alignSelf: 'center', marginBottom: 4 },
+  title: { fontFamily: F.title, fontSize: 24, textAlign: 'center', marginBottom: 20, color: C.primary },
+  input: { backgroundColor: 'white', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border, fontSize: 16 },
+  btn: { backgroundColor: C.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 4 },
+  btnText: { color: 'white', fontWeight: '700', fontSize: 16, letterSpacing: 0.5 },
 });

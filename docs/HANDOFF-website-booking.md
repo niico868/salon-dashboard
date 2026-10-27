@@ -59,31 +59,27 @@ app's **Supabase** database, so they appear in the app's calendar like any other
   taken from `src/lib/types.ts`.
 - **New appointments default to `status = 'booked'`.** The function doesn't set a status, just like
   the app. If website bookings don't show up as booked, that's the first thing to check.
-- **There are no owner/user-id columns.** The function writes with the server secret key, which
-  bypasses row-level security. If inserts fail on a missing owner column, that's why.
+- **Owner column (corrected 25 Oct 2026).** The tutorial gives every table an `owner_id` that
+  defaults to the logged-in user, with "owner only" security. The function isn't logged in, so it now
+  needs the `OWNER_ID` secret (Krystal's User UID) and stamps every insert with it. It also only reads
+  that owner's services, busy times and clients, so the test account's data is ignored.
 - **The Deno function code has never been typechecked or run.** It's excluded from the app's
   `tsc`/lint on purpose. The first deploy and `curl` test is its real test.
 - **Timezone is Trinidad (`-04:00`).** It can be changed with the `SALON_UTC_OFFSET` secret.
 
-## Instant alerts for website bookings (added 17 Oct 2026)
+## Website enquiries (added 25 Oct 2026)
 
-The app now pops up "New website booking" as soon as one arrives, while the app is open or in the
-background (phone notification, or a browser pop-up on the web version). It listens with Supabase
-Realtime, which is off by default. Turn it on once:
-
-1. Supabase dashboard → **SQL Editor** → **New query**.
-2. Paste and run: `alter publication supabase_realtime add table public.appointments;`
-3. You should see "Success. No rows returned".
-
-If the app is fully closed, the booking still shows next time it opens, and Krystal still gets the
-website's email and WhatsApp alert.
+The site's contact, consultation, treatment-finder and visiting forms already POST
+`{ type: "enquiry", source, name, phone, email, message }` to this function. They used to be rejected
+(400, no service or time) without anyone noticing. Now they're saved to the `enquiries` table
+(`supabase/sql/enquiries.sql`, run once in the SQL Editor) and listed on Home. No website changes needed.
 
 ## Good to know
 
 - **Limits:** bookings need 60 minutes' notice and can be at most 120 days ahead. Both are set at
   the top of `index.ts`.
-- **Notifications:** new website bookings now alert instantly while the app is open or in the
-  background (see above). If the app was fully closed, its reminder is set the next time it opens.
+- **Notifications:** website bookings get phone reminders only after the app is next opened, when
+  reminders re-sync. Instant alerts for new website bookings would be a sensible next feature.
 - **Same session, other features:** this session also added birthdays, the calendar day view and
   invoice PDFs. For those, the salon's name, address and phone still need filling in at the top of
   `src/lib/invoice.ts`. All of this work is uncommitted on `main`.

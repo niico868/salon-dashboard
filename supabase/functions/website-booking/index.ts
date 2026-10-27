@@ -1,45 +1,86 @@
 // Public booking endpoint for the salon's website (built in Lovable).
 //
-//   GET  /website-booking                  -> { services, hours }
-//   GET  /website-booking?date=2026-10-20  -> { services, hours, closed, busy: [{ starts_at, ends_at }] }  (no client details)
-//   POST /website-booking  { name, phone, email?, service_id | service_name, starts_at, notes?, duration_min? }  -> 201 { id, ... }
-//        service_name is matched to the app's menu; an unknown name is still booked at TT$0 and flagged in the notes
-//   POST /website-booking  { type: 'enquiry', name, phone, email?, message?, source? }  -> 201 { ok: true }
-//        (other website forms: creates/updates the client and adds them to today's follow-ups)
+//   GET  /website-booking                  -> { services }
+//   GET  /website-booking?date=2026-10-20  -> { services, busy: [{ starts_at, ends_at }] }  (no client details)
+//   POST /website-booking  { name, phone, email?, service_id, starts_at, notes? }  -> 201 { id, ... }
+//   POST /website-booking  { type: 'enquiry', source, name, phone?, email?, message } -> 201 { ok: true }
 //
 // The website never gets database keys. This function uses the server-side secret key,
 // validates everything, refuses double bookings and matches returning clients by phone.
-// Because the secret key skips the database's security rules, every query below is limited
-// to ONE account: the salon owner's (the OWNER_ID secret).
 //
-// Required secret (supabase secrets set NAME=value):
-//   OWNER_ID                 the owner's User UID from Supabase: Authentication -> Users
-// Optional secrets:
-//   ALLOWED_ORIGINS          comma-separated site URLs allowed to call this, e.g. https://meltawaysspa.com
+// Required secret:
+//   OWNER_ID                 the salon owner's user id (Supabase -> Authentication -> Users). Every table has an
+//                            owner_id column that the app fills from whoever is logged in; this function isn't
+//                            logged in, so it stamps rows with this id and only reads that owner's data.
+//
+// Optional secrets (supabase secrets set NAME=value):
+//   ALLOWED_ORIGINS          comma-separated site URLs allowed to call this, e.g. https://mysalon.com,https://mysalon.lovable.app
 //   WEBSITE_BOOKING_SECRET   if set, callers must send it in the x-booking-secret header (only for server-to-server calls)
-//   SALON_UTC_OFFSET         defaults to -04:00 (Trinidad); used for opening hours and ?date=
+//   SALON_UTC_OFFSET         defaults to -04:00 (Trinidad); used to turn ?date= into a day range
+//   VAPID_PUBLIC_KEY,        phone alerts: the owner gets a push alert for each new booking or enquiry on
+//   VAPID_PRIVATE_KEY        every phone that turned alerts on (More -> New booking alerts). Make the pair with
+//                            `npx web-push generate-vapid-keys`. Without them, bookings still work, just no alerts.
+//   VAPID_SUBJECT            contact for the push services, default mailto:meltawaystt@gmail.com
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-// ---- Salon settings -------------------------------------------------------
-const OPEN_DAYS = [2, 3, 4, 5, 6]; // 0 = Sunday ... 6 = Saturday -> Tuesday to Saturday
-const OPEN_HOUR = 10;              // 10:00 AM
-const CLOSE_HOUR = 16;             // 4:00 PM: appointments must finish by then
+const OFFSET = Deno.env.get('SALON_UTC_OFFSET') ?? '-04:00';
 const MAX_DAYS_AHEAD = 120;
 const MIN_NOTICE_MIN = 60;
-// ---------------------------------------------------------------------------
-
-const OWNER_ID = (Deno.env.get('OWNER_ID') ?? '').trim();
-const OFFSET = Deno.env.get('SALON_UTC_OFFSET') ?? '-04:00';
-const OFFSET_MIN = (() => {
-  const m = /^([+-])(\d{2}):(\d{2})$/.exec(OFFSET);
-  if (!m) return -240;
-  const v = Number(m[2]) * 60 + Number(m[3]);
-  return m[1] === '-' ? -v : v;
-})();
 
 const secretKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   ?? JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}').default;
 const db = createClient(Deno.env.get('SUPABASE_URL')!, secretKey, { auth: { persistSession: false } });
+
+const OWNER_ID = (Deno.env.get('OWNER_ID') ?? '').trim();
+// Only this owner's rows (not a test account's) count for the menu, busy times and client matching
+const mine = <Q extends { eq: (col: string, v: string) => Q }>(q: Q): Q => q.eq('owner_id', OWNER_ID);
+const owner = () => ({ owner_id: OWNER_ID });
+
+// ---------- Phone alerts ----------
+const VAPID_PUBLIC = Deno.env.get('VAPID_PUBLIC_KEY') ?? '';
+const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY') ?? '';
+const pushReady = !!(VAPID_PUBLIC && VAPID_PRIVATE);
+
+// Loaded on first alert only, so a problem with the push library can never stop bookings
+let pushLib: Promise<typeof import('npm:web-push@3.6.7')['default']> | null = null;
+const getPush = () => (pushLib ??= import('npm:web-push@3.6.7').then(({ default: wp }) => {
+  wp.setVapidDetails(Deno.env.get('VAPID_SUBJECT') ?? 'mailto:meltawaystt@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE);
+  return wp;
+}));
+
+const salonTime = (d: Date) => new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Port_of_Spain', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+}).format(d);
+
+// Never throws: a failed alert must not fail the customer's booking
+async function alertOwner(msg: { title: string; body: string; url: string; tag: string }) {
+  if (!pushReady) return;
+  try {
+    const webpush = await getPush();
+    const subs = await db.from('push_subscriptions').select('id, endpoint, p256dh, auth').eq('owner_id', OWNER_ID);
+    if (subs.error) throw subs.error;
+    await Promise.all(subs.data.map(async (s) => {
+      try {
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+          JSON.stringify(msg), { TTL: 24 * 3600, urgency: 'high' });
+      } catch (e) {
+        const code = (e as { statusCode?: number }).statusCode;
+        // 404/410: that phone turned alerts off or the app was removed; forget it
+        if (code === 404 || code === 410) await db.from('push_subscriptions').delete().eq('id', s.id);
+        else console.error('Push alert failed:', code, (e as Error).message);
+      }
+    }));
+  } catch (e) {
+    console.error('Push alerts skipped:', e);
+  }
+}
+
+// Send alerts after replying when the platform allows it, so the customer isn't kept waiting
+function inBackground(p: Promise<unknown>) {
+  const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  if (rt?.waitUntil) { rt.waitUntil(p); return Promise.resolve(); }
+  return p;
+}
 
 const allowed = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean);
 
@@ -55,42 +96,21 @@ function cors(req: Request) {
 
 // Same rule as the app's WhatsApp links, so "868-555-1234" and "+1 868 555 1234" match
 const normPhone = (p: string) => { const d = p.replace(/\D/g, ''); return d.length === 7 ? '1868' + d : d.length === 10 ? '1' + d : d; };
-// "Silk Press", "silk-press" and " silk press " all count as the same service
-const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// The salon's local clock for a moment in time: weekday and minutes since midnight
-function local(d: Date) {
-  const l = new Date(d.getTime() + OFFSET_MIN * 60_000);
-  return { day: l.getUTCDay(), minutes: l.getUTCHours() * 60 + l.getUTCMinutes() };
-}
-
-// Returning client? Match on phone number, then on email (only among the owner's clients).
-// Otherwise create a new client in the owner's account.
-async function findOrCreateClient(name: string, phone: string, email: string) {
-  const existing = await db.from('clients').select('id, phone, email').eq('owner_id', OWNER_ID);
-  if (existing.error) throw existing.error;
-  const want = normPhone(phone);
-  const found = existing.data.find((c) => c.phone && normPhone(c.phone) === want)
-    ?? (email ? existing.data.find((c) => c.email?.toLowerCase() === email) : undefined);
-  if (found) {
-    if (email && !found.email) await db.from('clients').update({ email }).eq('id', found.id).eq('owner_id', OWNER_ID);
-    return found;
-  }
-  const created = await db.from('clients')
-    .insert({ owner_id: OWNER_ID, full_name: name, phone, email: email || null })
-    .select('id, phone, email').single();
-  if (created.error) throw created.error;
-  return created.data;
-}
-
-const HOURS = {
-  days: OPEN_DAYS,
-  open: `${String(OPEN_HOUR).padStart(2, '0')}:00`,
-  close: `${String(CLOSE_HOUR).padStart(2, '0')}:00`,
-  utc_offset: OFFSET,
+const SOURCES = ['contact', 'consultation', 'treatment-finder', 'visit'];
+const SOURCE_LABEL: Record<string, string> = {
+  contact: 'Contact form', consultation: 'Consultation', 'treatment-finder': 'Treatment finder', visit: 'Visiting', other: 'Website',
 };
+
+// Find a returning client by phone, then email. Returns undefined for someone new.
+async function findClient(phone: string, email: string) {
+  const existing = await mine(db.from('clients').select('id, phone, email'));
+  if (existing.error) throw existing.error;
+  const want = phone ? normPhone(phone) : '';
+  return (want ? existing.data.find((c) => c.phone && normPhone(c.phone) === want) : undefined)
+    ?? (email ? existing.data.find((c) => c.email?.toLowerCase() === email) : undefined);
+}
 
 Deno.serve(async (req) => {
   const headers = { ...cors(req), 'Content-Type': 'application/json' };
@@ -103,80 +123,81 @@ Deno.serve(async (req) => {
   if (secret && req.headers.get('x-booking-secret') !== secret) return reply(401, { error: 'Unauthorized' });
 
   if (!UUID.test(OWNER_ID)) {
-    console.error('OWNER_ID secret is missing or not a User UID. Set it with: npx supabase secrets set OWNER_ID=...');
-    return reply(500, { error: 'Online booking is not set up yet. Please call the salon to book.' });
+    console.error('OWNER_ID secret is missing or not a user id. Run: npx supabase secrets set OWNER_ID=<owner user id>');
+    return reply(500, { error: 'Booking is not set up yet. Please call the salon.' });
   }
 
   try {
     if (req.method === 'GET') {
-      const services = await db.from('services').select('id, name, category, price, duration_min')
-        .eq('owner_id', OWNER_ID).eq('active', true).order('category').order('name');
+      const services = await mine(db.from('services').select('id, name, category, price, duration_min')
+        .eq('active', true)).order('category').order('name');
       if (services.error) throw services.error;
 
       const date = new URL(req.url).searchParams.get('date');
-      if (!date) return reply(200, { services: services.data, hours: HOURS });
+      if (!date) return reply(200, { services: services.data });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return reply(400, { error: 'date must look like 2026-10-20' });
       const from = new Date(`${date}T00:00:00${OFFSET}`);
-      if (isNaN(from.getTime())) return reply(400, { error: 'date must look like 2026-10-20' });
       const to = new Date(from.getTime() + 24 * 3600_000);
-      const closed = !OPEN_DAYS.includes(local(from).day);
-      if (closed) return reply(200, { services: services.data, hours: HOURS, closed: true, busy: [] });
-
-      const busy = await db.from('appointments').select('starts_at, ends_at')
-        .eq('owner_id', OWNER_ID).eq('status', 'booked')
-        .lt('starts_at', to.toISOString()).gt('ends_at', from.toISOString()).order('starts_at');
+      const busy = await mine(db.from('appointments').select('starts_at, ends_at'))
+        .eq('status', 'booked').lt('starts_at', to.toISOString()).gt('ends_at', from.toISOString()).order('starts_at');
       if (busy.error) throw busy.error;
-      return reply(200, { services: services.data, hours: HOURS, closed: false, busy: busy.data });
+      return reply(200, { services: services.data, busy: busy.data });
     }
 
     if (req.method !== 'POST') return reply(405, { error: 'Use GET or POST' });
 
     const b = await req.json().catch(() => null);
     if (!b || typeof b !== 'object') return reply(400, { error: 'Send a JSON body' });
-    // Hidden form field that people leave empty and spam bots fill in
-    if (b.company) return reply(201, { ok: true });
+    // Spam trap: a hidden field that people never see and bots fill in. It used to be called `company`,
+    // but browsers autofill that name from saved addresses, so real customers were silently dropped.
+    // `company` is now ignored; the website sends the trap as `mk_hp`, which no browser autofills.
+    if (b.mk_hp) {
+      console.warn('Spam trap filled, request ignored:', JSON.stringify({ type: b.type ?? 'booking', name: b.name, origin }));
+      return reply(201, { ok: true });
+    }
+
+    // Messages from the contact / consultation / treatment-finder / visiting forms.
+    // These have no service or time, so they are saved for the owner to follow up rather than booked.
+    if (b.type === 'enquiry') {
+      const name = String(b.name ?? '').trim();
+      const phone = String(b.phone ?? '').trim();
+      const email = String(b.email ?? '').trim().toLowerCase();
+      const message = String(b.message ?? '').trim();
+      const problems = [
+        (name.length < 2 || name.length > 100) && 'name',
+        phone && !/^\d{7,15}$/.test(phone.replace(/\D/g, '')) && 'phone',
+        email && (!EMAIL.test(email) || email.length > 200) && 'email',
+        !phone && !email && 'phone or email',
+        message.length > 2000 && 'message',
+      ].filter(Boolean);
+      if (problems.length) return reply(400, { error: `Please check: ${problems.join(', ')}` });
+
+      const client = await findClient(phone, email);
+      const source = SOURCES.includes(String(b.source)) ? String(b.source) : 'other';
+      const saved = await db.from('enquiries').insert({
+        ...owner(), client_id: client?.id ?? null, source,
+        name, phone: phone || null, email: email || null, message,
+      }).select('id').single();
+      if (saved.error) throw saved.error;
+
+      await inBackground(alertOwner({
+        title: `New enquiry: ${name}`,
+        body: `${SOURCE_LABEL[source]}${message ? `: ${message.slice(0, 140)}` : ''}`,
+        url: '/', tag: `enq-${saved.data.id}`,
+      }));
+      return reply(201, { ok: true });
+    }
 
     const name = String(b.name ?? '').trim();
     const phone = String(b.phone ?? '').trim();
     const email = String(b.email ?? '').trim().toLowerCase();
-
-    // ---- Enquiries from the other website forms (treatment finder, visits, consultations) ----
-    // No time slot: create or update the client, and put them on the app's Follow-ups list for today.
-    if (b.type === 'enquiry') {
-      const message = String(b.message ?? '').trim();
-      const source = String(b.source ?? 'enquiry').trim().slice(0, 50) || 'enquiry';
-      const bad = [
-        (name.length < 2 || name.length > 100) && 'name',
-        !/^\d{7,15}$/.test(phone.replace(/\D/g, '')) && 'phone',
-        email && (!EMAIL.test(email) || email.length > 200) && 'email',
-        message.length > 2000 && 'message',
-      ].filter(Boolean);
-      if (bad.length) return reply(400, { error: `Please check: ${bad.join(', ')}` });
-
-      const client = await findOrCreateClient(name, phone, email);
-      const today = new Date(Date.now() + OFFSET_MIN * 60_000).toISOString().slice(0, 10);
-      const line = `Website ${source}: ${message || '(no message)'}`;
-      const current = await db.from('clients').select('notes').eq('id', client.id).eq('owner_id', OWNER_ID).single();
-      if (current.error) throw current.error;
-      const notesText = [current.data.notes, `[${today}] ${line}`].filter(Boolean).join('\n').slice(-5000);
-      const upd = await db.from('clients').update({
-        notes: notesText,
-        follow_up_date: today,
-        follow_up_note: line.slice(0, 300),
-      }).eq('id', client.id).eq('owner_id', OWNER_ID);
-      if (upd.error) throw upd.error;
-      return reply(201, { ok: true });
-    }
-
     const notes = String(b.notes ?? '').trim();
     const start = new Date(String(b.starts_at ?? ''));
-    const serviceId = String(b.service_id ?? '').trim();
-    const serviceName = String(b.service_name ?? '').trim().slice(0, 100);
     const problems = [
       (name.length < 2 || name.length > 100) && 'name',
       !/^\d{7,15}$/.test(phone.replace(/\D/g, '')) && 'phone',
       email && (!EMAIL.test(email) || email.length > 200) && 'email',
-      !UUID.test(serviceId) && serviceName.length < 2 && 'service',
+      !UUID.test(String(b.service_id ?? '')) && 'service_id',
       isNaN(start.getTime()) && 'starts_at',
       notes.length > 500 && 'notes',
     ].filter(Boolean);
@@ -186,54 +207,39 @@ Deno.serve(async (req) => {
     if (start.getTime() < now + MIN_NOTICE_MIN * 60_000) return reply(400, { error: `Bookings need at least ${MIN_NOTICE_MIN} minutes' notice` });
     if (start.getTime() > now + MAX_DAYS_AHEAD * 86400_000) return reply(400, { error: `Bookings can be made up to ${MAX_DAYS_AHEAD} days ahead` });
 
-    // Which service? By app id first, then by name against the app's menu (ignoring case,
-    // spaces and punctuation). The app's own price and duration are always used, never the website's.
-    type Svc = { id: string | null; name: string; price: number; duration_min: number };
-    let service: Svc | null = null;
-    if (UUID.test(serviceId)) {
-      const r = await db.from('services').select('id, name, price, duration_min')
-        .eq('owner_id', OWNER_ID).eq('id', serviceId).eq('active', true).maybeSingle();
-      if (r.error) throw r.error;
-      service = r.data;
-    }
-    if (!service && serviceName) {
-      const r = await db.from('services').select('id, name, price, duration_min')
-        .eq('owner_id', OWNER_ID).eq('active', true);
-      if (r.error) throw r.error;
-      service = r.data.find((s) => normName(s.name) === normName(serviceName)) ?? null;
-    }
-    // Not on the app's menu: still take the booking so it isn't lost, at TT$0, flagged for the owner
-    const unmatched = !service;
-    if (!service) {
-      if (!serviceName) return reply(400, { error: 'That service is not available' });
-      const dur = Math.min(480, Math.max(15, Math.round(Number(b.duration_min) || 60)));
-      service = { id: null, name: serviceName, price: 0, duration_min: dur };
-    }
-    const svc = { data: service };
+    const svc = await mine(db.from('services').select('id, name, price, duration_min')).eq('id', b.service_id).eq('active', true).maybeSingle();
+    if (svc.error) throw svc.error;
+    if (!svc.data) return reply(400, { error: 'That service is not available' });
     const end = new Date(start.getTime() + svc.data.duration_min * 60_000);
 
-    // Opening hours: an open day, starting at or after opening, finishing by closing
-    const s = local(start);
-    if (!OPEN_DAYS.includes(s.day) || s.minutes < OPEN_HOUR * 60 || s.minutes + svc.data.duration_min > CLOSE_HOUR * 60) {
-      return reply(400, { error: `We're open Tuesday to Saturday, ${HOURS.open} to ${HOURS.close}. Please pick a time that finishes by closing.` });
-    }
-
-    const clash = await db.from('appointments').select('id')
-      .eq('owner_id', OWNER_ID).eq('status', 'booked')
+    const clash = await mine(db.from('appointments').select('id')).eq('status', 'booked')
       .lt('starts_at', end.toISOString()).gt('ends_at', start.toISOString()).limit(1);
     if (clash.error) throw clash.error;
     if (clash.data.length) return reply(409, { error: 'Sorry, that time was just taken. Please pick another.' });
 
-    const client = await findOrCreateClient(name, phone, email);
+    // Returning client? Match on phone number, then on email
+    let client = await findClient(phone, email);
+    if (!client) {
+      const created = await db.from('clients').insert({ ...owner(), full_name: name, phone, email: email || null })
+        .select('id, phone, email').single();
+      if (created.error) throw created.error;
+      client = created.data;
+    } else if (email && !client.email) {
+      await db.from('clients').update({ email }).eq('id', client.id);
+    }
 
     const appt = await db.from('appointments').insert({
-      owner_id: OWNER_ID, client_id: client.id, service_id: svc.data.id, service_name: svc.data.name,
-      price: svc.data.price, status: 'booked',
+      ...owner(), client_id: client.id, service_id: svc.data.id, service_name: svc.data.name, price: svc.data.price,
       starts_at: start.toISOString(), ends_at: end.toISOString(),
-      notes: `[Website]${unmatched ? ' Not on app menu, set price.' : ''} ${notes}`.trim(),
+      notes: `[Website] ${notes}`.trim(),
     }).select('id, starts_at, ends_at, service_name, price').single();
     if (appt.error) throw appt.error;
 
+    await inBackground(alertOwner({
+      title: `New booking: ${name}`,
+      body: `${svc.data.name} · ${salonTime(start)}`,
+      url: `/appointment/${appt.data.id}`, tag: `appt-${appt.data.id}`,
+    }));
     return reply(201, appt.data);
   } catch (e) {
     console.error(e);

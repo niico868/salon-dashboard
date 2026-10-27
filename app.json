@@ -1,17 +1,21 @@
 {
   "expo": {
-    "name": "salon-dashboard",
+    "name": "Melt Aways Dashboard",
     "slug": "salon-dashboard",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "salondashboard",
-    "userInterfaceStyle": "automatic",
-    "ios": {},
+    "userInterfaceStyle": "light",
+    "ios": {
+      "icon": "./assets/images/icon.png"
+    },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#FFF5F8"
+        "backgroundColor": "#F8E2E1",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -19,8 +23,8 @@
       "output": "single",
       "name": "Melt Aways Spa Dashboard",
       "shortName": "Melt Aways",
-      "themeColor": "#D51D5E",
-      "backgroundColor": "#FFF8FA",
+      "themeColor": "#9D3438",
+      "backgroundColor": "#FFFCF9",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -28,25 +32,18 @@
       [
         "expo-splash-screen",
         {
+          "backgroundColor": "#FFFCF9",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 220,
-          "backgroundColor": "#FFF8FA"
+          "imageWidth": 200
         }
       ],
       "expo-secure-store",
       "@react-native-community/datetimepicker",
-      "expo-sharing",
-      "expo-font"
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "1f623e19-7cea-40bf-9a00-28915a4fe8e5"
-      }
     }
   }
 }

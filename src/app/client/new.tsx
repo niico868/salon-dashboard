@@ -1,24 +1,22 @@
 import { addWeeks, format } from 'date-fns';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import Button from '../../components/Button';
-import Field from '../../components/Field';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../../components/AppText';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
-import { useToast } from '../../components/Toast';
-import { BodyStrong, Small } from '../../components/Typography';
 import { supabase } from '../../lib/supabase';
-import { colors, fonts, radius, space, touch } from '../../lib/theme';
 
 const blank = { full_name: '', phone: '', email: '', birthday: '', preferences: '', notes: '',
   follow_up_date: '', follow_up_note: '' };
 
 export default function ClientForm() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const [f, setF] = useState(blank);
+  // Coming from a website enquiry: start with their details and link the enquiry once saved
+  const { id, name, phone, email, notes, enquiry } =
+    useLocalSearchParams<{ id?: string; name?: string; phone?: string; email?: string; notes?: string; enquiry?: string }>();
+  const [f, setF] = useState(() => id ? blank
+    : { ...blank, full_name: name ?? '', phone: phone ?? '', email: email ?? '', notes: notes ?? '' });
   const [loadError, setLoadError] = useState(false);
-  const toast = useToast();
 
   const load = useCallback(() => {
     if (!id) return;
@@ -37,11 +35,14 @@ export default function ClientForm() {
     if (!f.full_name.trim()) return Alert.alert('Name is required');
     if (f.birthday && !/^\d{4}-\d{2}-\d{2}$/.test(f.birthday)) return Alert.alert('Birthday must look like 1990-05-21');
     const row = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.trim() || null]));
-    const { error } = id
-      ? await supabase.from('clients').update(row).eq('id', id)
-      : await supabase.from('clients').insert(row);
-    if (error) return Alert.alert('Save failed', error.message);
-    toast.show('Client saved');
+    if (id) {
+      const { error } = await supabase.from('clients').update(row).eq('id', id);
+      if (error) return Alert.alert('Save failed', error.message);
+    } else {
+      const { data, error } = await supabase.from('clients').insert(row).select('id').single();
+      if (error) return Alert.alert('Save failed', error.message);
+      if (enquiry) await supabase.from('enquiries').update({ client_id: data.id }).eq('id', enquiry);
+    }
     router.back();
   }
 
@@ -50,41 +51,33 @@ export default function ClientForm() {
 
   return (
     <Screen>
-      <Field label="Full name" required placeholder="e.g. Aaliyah Mohammed" autoCapitalize="words"
-        value={f.full_name} onChangeText={set('full_name')} />
-      <Field label="Phone" placeholder="e.g. 868 555 1234" hint="Used for calls and WhatsApp" keyboardType="phone-pad"
-        value={f.phone} onChangeText={set('phone')} />
-      <Field label="Email" placeholder="e.g. aaliyah@example.com" autoCapitalize="none" keyboardType="email-address"
-        value={f.email} onChangeText={set('email')} />
-      <Field label="Birthday" placeholder="e.g. 1990-05-21" hint="Year-month-day. Shows on Home the week of their birthday."
-        value={f.birthday} onChangeText={set('birthday')} />
-      <Field label="Preferences" multiline placeholder="e.g. Prefers morning appointments, sensitive skin"
-        value={f.preferences} onChangeText={set('preferences')} />
-      <Field label="Notes" multiline placeholder="e.g. Allergic to latex" value={f.notes} onChangeText={set('notes')} />
+      <TextInput style={s.in} placeholder="Full name *" value={f.full_name} onChangeText={set('full_name')} />
+      <TextInput style={s.in} placeholder="Phone (e.g. 868 555 1234)" keyboardType="phone-pad" value={f.phone} onChangeText={set('phone')} />
+      <TextInput style={s.in} placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={f.email} onChangeText={set('email')} />
+      <TextInput style={s.in} placeholder="Birthday (YYYY-MM-DD)" value={f.birthday} onChangeText={set('birthday')} />
+      <TextInput style={[s.in, s.multi]} multiline placeholder="Preferences (products, style)" value={f.preferences} onChangeText={set('preferences')} />
+      <TextInput style={[s.in, s.multi]} multiline placeholder="Notes" value={f.notes} onChangeText={set('notes')} />
 
-      <BodyStrong style={{ marginTop: space.xs }}>Follow up {f.follow_up_date ? `on ${f.follow_up_date}` : '(none)'}</BodyStrong>
+      <Text style={s.label}>Follow up {f.follow_up_date ? `on ${f.follow_up_date}` : '(none)'}</Text>
       <View style={s.chips}>
         {[2, 4, 6].map((w) => (
-          <Pressable key={w} style={s.chip} onPress={() => followIn(w)} accessibilityRole="button">
-            <Text style={s.chipText}>In {w} wks</Text>
-          </Pressable>
+          <Pressable key={w} style={s.chip} onPress={() => followIn(w)}><Text>In {w} wks</Text></Pressable>
         ))}
-        <Pressable style={[s.chip, s.chipClear]} onPress={() => setF({ ...f, follow_up_date: '' })} accessibilityRole="button">
-          <Text style={[s.chipText, { color: colors.textMuted }]}>Clear</Text>
-        </Pressable>
+        <Pressable style={s.chip} onPress={() => setF({ ...f, follow_up_date: '' })}><Text>Clear</Text></Pressable>
       </View>
-      <Field label="Follow-up note" placeholder="e.g. Check colour fade" value={f.follow_up_note} onChangeText={set('follow_up_note')} />
-      <Small>Fields marked * are required.</Small>
+      <TextInput style={s.in} placeholder="Follow-up note (e.g. check colour fade)" value={f.follow_up_note} onChangeText={set('follow_up_note')} />
 
-      <Button title="Save client" icon="checkmark" onPress={save} style={{ marginTop: space.sm }} />
+      <Pressable style={s.btn} onPress={save}><Text style={s.btnText}>Save client</Text></Pressable>
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  chips: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' },
-  chip: { minHeight: touch.min - 8, justifyContent: 'center', backgroundColor: colors.blush, borderRadius: radius.pill,
-    paddingHorizontal: 14 },
-  chipClear: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  chipText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.primary },
+  in: { backgroundColor: 'white', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#eee' },
+  multi: { minHeight: 80, textAlignVertical: 'top' },
+  label: { fontWeight: '600', marginTop: 4 },
+  chips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  chip: { backgroundColor: 'white', borderWidth: 1, borderColor: '#9D3438', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
+  btnText: { color: 'white', fontWeight: '600' },
 });

@@ -1,15 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import Button from '../../components/Button';
-import Field from '../../components/Field';
+import { Alert, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../../components/AppText';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
-import { useToast } from '../../components/Toast';
-import { BodyStrong, Label } from '../../components/Typography';
 import { TTD } from '../../lib/money';
 import { supabase } from '../../lib/supabase';
-import { colors, fonts, radius, shadow, space, touch } from '../../lib/theme';
 import type { AppointmentBalance, Payment } from '../../lib/types';
 
 const METHODS: Payment['method'][] = ['cash', 'card', 'transfer', 'online'];
@@ -23,7 +19,6 @@ export default function NewPayment() {
   const [link, setLink] = useState('');
   const [note, setNote] = useState('');
   const [loadError, setLoadError] = useState(false);
-  const toast = useToast();
 
   const load = useCallback(() => {
     if (!appointmentId) return;
@@ -56,53 +51,40 @@ export default function NewPayment() {
       await Share.share({ message:
         `Hi${appt ? ' ' + appt.client_name.split(' ')[0] : ''}, here's your payment link for ${TTD(value)}: ${link.trim()}` });
     }
-    toast.show(online ? 'Payment link saved' : 'Payment recorded');
     router.back();
   }
 
   return (
     <Screen>
-      {appt && (
-        <View style={s.card}>
-          <BodyStrong>{appt.client_name}</BodyStrong>
-          <Label>{appt.service_name} · balance {TTD(Number(appt.balance))}</Label>
-        </View>
-      )}
-      <Field label="Amount (TT$)" required keyboardType="decimal-pad" value={amount} onChangeText={setAmount}
-        placeholder="e.g. 350.00" style={s.big} />
-      <View style={{ gap: 6 }}>
-        <Label style={{ color: colors.text, fontSize: 14 }}>Paid by</Label>
-        <View style={s.row}>
-          {METHODS.map((m) => (
-            <Pressable key={m} style={[s.chip, method === m && s.on]} onPress={() => setMethod(m)}
-              accessibilityRole="button" accessibilityState={{ selected: method === m }}>
-              <Text style={[s.chipText, method === m && s.chipTextOn]}>{m}</Text>
-            </Pressable>
-          ))}
-        </View>
+      {appt && <Text style={s.sub}>{appt.client_name} · {appt.service_name} · balance {TTD(Number(appt.balance))}</Text>}
+      <TextInput style={s.big} keyboardType="decimal-pad" value={amount} onChangeText={setAmount} placeholder="0.00" />
+      <View style={s.row}>
+        {METHODS.map((m) => (
+          <Pressable key={m} style={[s.chip, method === m && s.on]} onPress={() => setMethod(m)}>
+            <Text style={method === m ? { color: 'white' } : undefined}>{m}</Text>
+          </Pressable>
+        ))}
       </View>
       {method === 'online' ? (
-        <Field label="Payment link" required placeholder="e.g. https://pay.wipay.co.tt/abc123" autoCapitalize="none"
-          keyboardType="url" hint="Saved as pending until the client pays. You'll be asked to share it next."
-          value={link} onChangeText={setLink} />
+        <TextInput style={s.in} placeholder="Paste payment link" autoCapitalize="none" value={link} onChangeText={setLink} />
       ) : (
-        <Field label="Reference" placeholder="e.g. Receipt 0042 or bank ref" hint="Optional"
-          value={reference} onChangeText={setReference} />
+        <TextInput style={s.in} placeholder="Reference (receipt or bank ref, optional)" value={reference} onChangeText={setReference} />
       )}
-      <Field label="Note" placeholder="e.g. Includes TT$50 tip" value={note} onChangeText={setNote} />
-      <Button title={method === 'online' ? 'Save and share link' : 'Record payment'}
-        icon={method === 'online' ? 'share-outline' : 'cash-outline'} onPress={save} style={{ marginTop: space.sm }} />
+      <TextInput style={s.in} placeholder="Note (e.g. tip, product sale)" value={note} onChangeText={setNote} />
+      <Pressable style={s.btn} onPress={save}>
+        <Text style={s.btnText}>{method === 'online' ? 'Save and share link' : 'Record payment'}</Text>
+      </Pressable>
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.lg, gap: 2, ...shadow.card },
-  big: { fontFamily: fonts.title, fontSize: 32, textAlign: 'center', paddingVertical: space.lg },
-  row: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' },
-  chip: { minHeight: touch.min - 4, justifyContent: 'center', borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.pill, paddingHorizontal: 16, backgroundColor: colors.surface },
-  on: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontFamily: fonts.bodyMedium, fontSize: 15, color: colors.text, textTransform: 'capitalize' },
-  chipTextOn: { fontFamily: fonts.bodyBold, color: colors.textOnPrimary },
+  sub: { color: '#777' },
+  big: { fontSize: 36, fontWeight: '700', textAlign: 'center', backgroundColor: 'white', borderRadius: 12, padding: 16 },
+  row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  chip: { borderWidth: 1, borderColor: '#9D3438', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: 'white' },
+  on: { backgroundColor: '#9D3438' },
+  in: { backgroundColor: 'white', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#eee' },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 16, alignItems: 'center' },
+  btnText: { color: 'white', fontWeight: '600' },
 });

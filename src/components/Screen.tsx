@@ -1,18 +1,6 @@
-import { RefreshControl, ScrollView, ViewStyle } from 'react-native';
-import { colors, space } from '../lib/theme';
+import { ScrollView, StyleSheet, ViewStyle } from 'react-native';
 
-// Shared page wrapper: blush background, even padding, optional pull-to-refresh.
-// <Screen onRefresh={load} refreshing={busy}>…</Screen>
-export default function Screen({ children, style, onRefresh, refreshing = false }:
-  { children: React.ReactNode; style?: ViewStyle; onRefresh?: () => void; refreshing?: boolean }) {
-  return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={[{ padding: space.lg, gap: space.md, flexGrow: 1, paddingBottom: space.xxl }, style]}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-        tintColor={colors.primary} colors={[colors.primary]} /> : undefined}>
-      {children}
-    </ScrollView>
-  );
+export default function Screen({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
+  return <ScrollView contentContainerStyle={[styles.c, style]}>{children}</ScrollView>;
 }
+const styles = StyleSheet.create({ c: { padding: 16, gap: 12, backgroundColor: '#FFFCF9', flexGrow: 1 } });

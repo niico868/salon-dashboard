@@ -1,36 +1,31 @@
 import type { Session } from '@supabase/supabase-js';
+import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import { router, Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { AppState, Platform } from 'react-native';
-import { ToastProvider } from '../components/Toast';
-import { useBrandFonts } from '../lib/fonts';
-import { setupNotifications, setupWebNotifications, syncReminders, watchWebsiteBookings } from '../lib/notifications';
+import { ActivityIndicator, AppState, Platform, View } from 'react-native';
+import { setupNotifications, syncReminders } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
-import { colors, fonts } from '../lib/theme';
+import { C, F } from '../lib/theme';
 import '../lib/web-alert';
 
-SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
-  const fontsReady = useBrandFonts();
-  const appReady = ready && fontsReady;
+  const [fontsLoaded, fontError] = useFonts({
+    [F.script]: require('../../assets/fonts/GreatVibes-Regular.ttf'),
+    [F.body]: require('../../assets/fonts/Lato-Regular.ttf'),
+    [F.bodyBold]: require('../../assets/fonts/Lato-Bold.ttf'),
+    [F.title]: require('../../assets/fonts/PlayfairDisplay-SemiBold.ttf'),
+    [F.titleBold]: require('../../assets/fonts/PlayfairDisplay-Bold.ttf'),
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
-
-  // Pop up an alert as soon as a website booking lands (phone and browser)
-  useEffect(() => {
-    if (!session) return;
-    setupWebNotifications().catch(() => {});
-    return watchWebsiteBookings();
-  }, [session]);
 
   useEffect(() => {
     if (!session || Platform.OS === 'web') return;
@@ -54,20 +49,18 @@ export default function RootLayout() {
     return () => { appSub.remove(); tapSub.remove(); };
   }, [session]);
 
-  useEffect(() => {
-    if (appReady) SplashScreen.hideAsync().catch(() => {});
-  }, [appReady]);
-
-  if (!appReady) return null;
+  // A font that fails to download should not lock Krystal out — fall back to system fonts
+  if (!ready || (!fontsLoaded && !fontError)) return (
+    <View style={{ flex: 1, justifyContent: 'center', backgroundColor: C.bg }}><ActivityIndicator color={C.primary} /></View>
+  );
 
   return (
-    <ToastProvider>
     <Stack screenOptions={{
-      headerStyle: { backgroundColor: colors.background },
+      headerStyle: { backgroundColor: C.bg },
+      headerTintColor: C.primary,
+      headerTitleStyle: { fontFamily: F.title, color: C.ink },
       headerShadowVisible: false,
-      headerTintColor: colors.primary,
-      headerTitleStyle: { fontFamily: fonts.heading, color: colors.text },
-      contentStyle: { backgroundColor: colors.background },
+      contentStyle: { backgroundColor: C.bg },
     }}>
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -82,6 +75,5 @@ export default function RootLayout() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
-    </ToastProvider>
   );
 }

@@ -8,3 +8,6 @@ export type AppointmentBalance = Appointment & { client_name: string; paid: numb
 export type Payment = { id: string; appointment_id: string | null; client_id: string | null; amount: number;
   method: 'cash' | 'card' | 'transfer' | 'online'; status: 'pending' | 'paid' | 'failed' | 'refunded';
   paid_at: string | null; reference: string | null; payment_url: string | null; note: string | null };
+export type Enquiry = { id: string; client_id: string | null; name: string; phone: string | null; email: string | null;
+  source: 'contact' | 'consultation' | 'treatment-finder' | 'visit' | 'other'; message: string;
+  status: 'new' | 'done'; created_at: string; handled_at: string | null };

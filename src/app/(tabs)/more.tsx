@@ -1,64 +1,82 @@
 import { clearPasscode } from '@/lib/passcode';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
-import Logo from '../../components/Logo';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, View } from 'react-native';
+import { Text } from '../../components/AppText';
 import PasscodePrompt from '../../components/PasscodePrompt';
-import PressableScale from '../../components/PressableScale';
 import Screen from '../../components/Screen';
-import { useToast } from '../../components/Toast';
-import { BodyStrong, Small } from '../../components/Typography';
-import { haptic } from '../../lib/motion';
 import { supabase } from '../../lib/supabase';
-import { brand, colors, radius, shadow, space, touch } from '../../lib/theme';
+import { C } from '../../lib/theme';
+import { disablePush, enablePush, getPushState, type PushState } from '../../lib/webPush';
 
-type RowProps = { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void; danger?: boolean };
-
-const Row = ({ label, icon, onPress, danger }: RowProps) => (
-  <PressableScale onPress={onPress} style={s.row} accessibilityRole="button" accessibilityLabel={label}>
-    <View style={[s.icon, danger && { backgroundColor: colors.dangerBg }]}>
-      <Ionicons name={icon} size={20} color={danger ? colors.danger : colors.primary} />
-    </View>
-    <BodyStrong style={[{ flex: 1 }, danger && { color: colors.danger }]}>{label}</BodyStrong>
-    {!danger && <Ionicons name="chevron-forward" size={18} color={colors.placeholder} />}
-  </PressableScale>
-);
+const ALERT_TEXT: Record<PushState, string> = {
+  on: 'On for this phone. You\'ll get an alert for each new website booking or enquiry.',
+  off: 'Get an alert on this phone when someone books or sends a message on the website.',
+  blocked: 'Notifications are blocked for this app. Allow them in your browser or phone settings, then come back.',
+  'install-first': 'On iPhone, first add this app to your Home Screen: tap Share, then "Add to Home Screen". Open it from there and turn alerts on.',
+  unsupported: 'Alerts for website bookings work in the web app installed on your phone, not here.',
+  'not-configured': 'Alerts aren\'t set up yet: the VAPID key is missing from the app\'s settings.',
+};
 
 export default function More() {
   const [changing, setChanging] = useState(false);
-  const toast = useToast();
+  const [push, setPush] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    getPushState().then(setPush).catch(() => setPush('unsupported'));
+  }, []));
+
+  async function togglePush() {
+    setBusy(true);
+    try {
+      if (push === 'on') { await disablePush(); setPush('off'); }
+      else setPush(await enablePush());
+    } catch (e: any) {
+      Alert.alert('Couldn\'t change alerts', e?.message ?? 'Please try again.');
+    } finally { setBusy(false); }
+  }
+
+  const Row = ({ label, onPress }: { label: string; onPress: () => void }) => (
+    <Pressable onPress={onPress} style={{ backgroundColor: 'white', padding: 16, borderRadius: 12 }}>
+      <Text style={{ fontSize: 16 }}>{label}</Text>
+    </Pressable>
+  );
+  const canToggle = push === 'on' || push === 'off';
+
   return (
     <Screen>
-      <Row label="Service menu" icon="list-outline" onPress={() => router.push('/services')} />
-      <Row label="Change passcode" icon="key-outline" onPress={() => setChanging(true)} />
-      <Row label="Log out" icon="log-out-outline" danger onPress={() => {
-        haptic.warning();
-        Alert.alert('Log out?', '', [
-          { text: 'Cancel' },
-          { text: 'Log out', style: 'destructive', onPress: async () => {
-            await clearPasscode();
-            await supabase.auth.signOut();
-          } },
-        ]);
-      }} />
-      <View style={s.footer}>
-        <Logo width={140} />
-        <Small style={{ fontStyle: 'italic', textAlign: 'center' }}>{brand.tagline}</Small>
+      <Row label="Service menu" onPress={() => router.push('/services')} />
+
+      <View style={{ backgroundColor: 'white', padding: 16, borderRadius: 12, gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ fontSize: 16 }}>New booking alerts</Text>
+          {push === null || busy ? <ActivityIndicator color={C.primary} /> : canToggle && (
+            <Pressable onPress={togglePush} style={{
+              backgroundColor: push === 'on' ? C.blush : C.primary, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6,
+            }}>
+              <Text style={{ color: push === 'on' ? C.primary : 'white', fontWeight: '700' }}>{push === 'on' ? 'Turn off' : 'Turn on'}</Text>
+            </Pressable>
+          )}
+        </View>
+        {push && <Text style={{ color: C.muted }}>{ALERT_TEXT[push]}</Text>}
       </View>
+
+      <Row label="Change passcode" onPress={() => setChanging(true)} />
+      <Row label="Log out" onPress={() => Alert.alert('Log out?', '', [
+        { text: 'Cancel' },
+        { text: 'Log out', style: 'destructive', onPress: async () => {
+          await disablePush().catch(() => {});   // stop this phone getting the owner's alerts
+          await clearPasscode();
+          await supabase.auth.signOut();
+        } },
+      ])} />
       <PasscodePrompt visible={changing} onCancel={() => setChanging(false)}
         onSuccess={async () => {
           setChanging(false);
           await clearPasscode();
-          toast.show('Passcode cleared');
+          Alert.alert('Passcode cleared', 'You will create a new one next time it is needed.');
         }} />
     </Screen>
   );
 }
-
-const s = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, padding: space.md,
-    minHeight: touch.min + 16, borderRadius: radius.lg, ...shadow.card },
-  icon: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.blush, alignItems: 'center', justifyContent: 'center' },
-  footer: { marginTop: 'auto', alignItems: 'center', gap: space.sm, paddingTop: space.xxl, opacity: 0.9 },
-});

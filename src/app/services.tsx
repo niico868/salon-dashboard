@@ -1,19 +1,13 @@
 import { useCallback, useState } from 'react';
-import { Alert, Modal, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
+import { C, F } from '../lib/theme';
 import { useFocusEffect } from 'expo-router';
-import Button from '../components/Button';
-import EmptyState from '../components/EmptyState';
-import Field from '../components/Field';
 import Screen from '../components/Screen';
 import LoadError from '../components/LoadError';
 import PasscodePrompt from '../components/PasscodePrompt';
-import PressableScale from '../components/PressableScale';
-import { SkeletonList } from '../components/Skeleton';
-import { useToast } from '../components/Toast';
-import { BodyStrong, Heading, Label, Title } from '../components/Typography';
 import { supabase } from '../lib/supabase';
 import { TTD } from '../lib/money';
-import { colors, radius, shadow, space } from '../lib/theme';
 import type { Service } from '../lib/types';
 
 type Draft = { id?: string; name: string; category: string; price: string; duration_min: string; active: boolean };
@@ -25,13 +19,9 @@ export default function Services() {
   const [asking, setAsking] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [loadError, setLoadError] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const toast = useToast();
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from('services').select('*').order('category').order('name');
-    setLoaded(true);
     if (error) return setLoadError(true);
     setLoadError(false);
     setItems(data as Service[]);
@@ -52,7 +42,6 @@ export default function Services() {
       ? await supabase.from('services').update(row).eq('id', draft.id)
       : await supabase.from('services').insert(row);
     if (error) return Alert.alert('Save failed', error.message);
-    toast.show(draft.id ? 'Service updated' : 'Service added');
     setDraft(null); load();
   }
 
@@ -62,61 +51,56 @@ export default function Services() {
     (acc[s.category] ??= []).push(s); return acc;
   }, {});
 
-  const addOrUnlock = () => (unlocked ? setDraft({ ...EMPTY }) : setAsking(true));
-
   return (
-    <Screen refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}>
-      <Button title={unlocked ? 'Add service' : 'Edit menu'} icon={unlocked ? 'add' : 'lock-closed-outline'}
-        variant={unlocked ? 'outline' : 'primary'} onPress={addOrUnlock} />
+    <Screen>
+      <Pressable style={[st.btn, unlocked && st.btnOutline]}
+        onPress={() => (unlocked ? setDraft({ ...EMPTY }) : setAsking(true))}>
+        <Text style={[st.btnText, unlocked && { color: '#9D3438' }]}>
+          {unlocked ? '+ Add service' : '🔒 Edit menu'}
+        </Text>
+      </Pressable>
       {loadError && <LoadError onRetry={load} />}
-      {!loaded && !loadError && <SkeletonList count={3} />}
 
       {Object.entries(groups).map(([cat, list]) => (
-        <View key={cat} style={{ gap: space.sm }}>
-          <Heading style={{ marginTop: space.sm }}>{cat}</Heading>
+        <View key={cat} style={{ gap: 6 }}>
+          <Text style={st.cat}>{cat}</Text>
           {list.map((s) => (
-            <PressableScale key={s.id} disabled={!unlocked}
+            <Pressable key={s.id} disabled={!unlocked}
               onPress={() => setDraft({ id: s.id, name: s.name, category: s.category, price: String(s.price),
                 duration_min: String(s.duration_min), active: s.active })}
-              style={[st.row, !s.active && { opacity: 0.5 }]}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <BodyStrong>{s.name}{!s.active ? ' (retired)' : ''}</BodyStrong>
-                <Label>{s.duration_min} min</Label>
+              style={[st.row, !s.active && { opacity: 0.4 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={st.name}>{s.name}{!s.active ? ' (retired)' : ''}</Text>
+                <Text style={st.sub}>{s.duration_min} min</Text>
               </View>
-              <BodyStrong>{TTD(Number(s.price))}</BodyStrong>
-            </PressableScale>
+              <Text style={st.price}>{TTD(Number(s.price))}</Text>
+            </Pressable>
           ))}
         </View>
       ))}
-      {loaded && visible.length === 0 && !loadError && (
-        <EmptyState icon="list-outline" title="Your menu is empty" message="Add the services clients can book."
-          actionLabel="Add service" onAction={addOrUnlock} />
-      )}
+      {visible.length === 0 && !loadError && <Text style={st.sub}>No services yet. Tap Edit menu to add your first.</Text>}
 
       <PasscodePrompt visible={asking} onCancel={() => setAsking(false)}
         onSuccess={() => { setAsking(false); setUnlocked(true); }} />
 
       <Modal visible={!!draft} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDraft(null)}>
         {draft && (
-          <Screen style={{ paddingTop: space.xl }}>
-            <Title accessibilityRole="header">{draft.id ? 'Edit service' : 'New service'}</Title>
-            <Field label="Name" required placeholder="e.g. Body sculpting session" value={draft.name}
+          <Screen>
+            <Text style={st.cat}>{draft.id ? 'Edit service' : 'New service'}</Text>
+            <TextInput style={st.input} placeholder="Name (e.g. Silk press)" value={draft.name}
               onChangeText={(name) => setDraft({ ...draft, name })} />
-            <Field label="Category" placeholder="e.g. Body, Facials, Massage" hint="Services are grouped by this on the menu"
-              value={draft.category} onChangeText={(category) => setDraft({ ...draft, category })} />
-            <Field label="Price (TT$)" required placeholder="e.g. 350" keyboardType="decimal-pad" value={draft.price}
+            <TextInput style={st.input} placeholder="Category (e.g. Hair, Nails, Lashes)" value={draft.category}
+              onChangeText={(category) => setDraft({ ...draft, category })} />
+            <TextInput style={st.input} placeholder="Price in TT$" keyboardType="decimal-pad" value={draft.price}
               onChangeText={(price) => setDraft({ ...draft, price })} />
-            <Field label="Duration (minutes)" required placeholder="e.g. 45" keyboardType="number-pad"
-              hint="Used to block out the calendar" value={draft.duration_min}
-              onChangeText={(duration_min) => setDraft({ ...draft, duration_min })} />
+            <TextInput style={st.input} placeholder="Duration in minutes" keyboardType="number-pad"
+              value={draft.duration_min} onChangeText={(duration_min) => setDraft({ ...draft, duration_min })} />
             <View style={st.switchRow}>
-              <BodyStrong>Available for booking</BodyStrong>
-              <Switch value={draft.active} onValueChange={(active) => setDraft({ ...draft, active })}
-                trackColor={{ true: colors.primary, false: colors.border }} thumbColor={colors.surface}
-                ios_backgroundColor={colors.border} accessibilityLabel="Available for booking" />
+              <Text>Available for booking</Text>
+              <Switch value={draft.active} onValueChange={(active) => setDraft({ ...draft, active })} />
             </View>
-            <Button title="Save" icon="checkmark" onPress={save} />
-            <Button title="Cancel" variant="ghost" onPress={() => setDraft(null)} />
+            <Pressable style={st.btn} onPress={save}><Text style={st.btnText}>Save</Text></Pressable>
+            <Pressable onPress={() => setDraft(null)}><Text style={st.cancel}>Cancel</Text></Pressable>
           </Screen>
         )}
       </Modal>
@@ -125,7 +109,15 @@ export default function Services() {
 }
 
 const st = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.surface, padding: space.lg,
-    borderRadius: radius.lg, ...shadow.card },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: space.xs },
+  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 14, alignItems: 'center' },
+  btnOutline: { backgroundColor: 'white', borderWidth: 1, borderColor: '#9D3438' },
+  btnText: { color: 'white', fontWeight: '600' },
+  cat: { fontSize: 18, fontFamily: F.title, color: C.ink, marginTop: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 14, borderRadius: 12 },
+  name: { fontSize: 16, fontWeight: '500' },
+  sub: { color: '#777' },
+  price: { fontWeight: '600' },
+  input: { backgroundColor: 'white', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#eee' },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 4 },
+  cancel: { textAlign: 'center', color: '#9D3438', padding: 8 },
 });
