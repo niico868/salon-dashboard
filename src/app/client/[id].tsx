@@ -10,13 +10,19 @@ import { shareAppointmentInvoice, shareClientStatement } from '../../lib/invoice
 import { TTD } from '../../lib/money';
 import { waLink } from '../../lib/phone';
 import { supabase } from '../../lib/supabase';
-import type { AppointmentBalance, Client } from '../../lib/types';
+import type { AppointmentBalance, Client, ClientMessage, MessageKind } from '../../lib/types';
+
+const MESSAGE_LABEL: Record<MessageKind, string> = {
+  reminder_2d: 'Reminder (2 days before)', reminder_1d: 'Reminder (day before)', aftercare: 'Aftercare',
+  checkin_1w: '1-week check-in', rebook_1m: 'Rebooking offer (1 month)', rebook_2m: 'Rebooking offer (2 months)', birthday: 'Birthday wishes',
+};
 
 export default function ClientProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [c, setC] = useState<Client | null>(null);
   const [visits, setVisits] = useState<AppointmentBalance[]>([]);
   const [loadError, setLoadError] = useState(false);
+  const [messages, setMessages] = useState<ClientMessage[]>([]);
 
   const load = useCallback(async () => {
     const [cr, vr] = await Promise.all([
@@ -27,6 +33,10 @@ export default function ClientProfile() {
     setLoadError(false);
     setC(cr.data as Client);
     setVisits((vr.data as AppointmentBalance[]) ?? []);
+    // Automatic emails sent to this client. Quietly empty until supabase/sql/client-messages.sql has been run.
+    const mr = await supabase.from('client_messages').select('id, kind, channel, status, error, created_at')
+      .eq('client_id', id).order('created_at', { ascending: false }).limit(10);
+    setMessages(mr.error ? [] : (mr.data as ClientMessage[]));
   }, [id]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -85,6 +95,19 @@ export default function ClientProfile() {
           )}
         </View>
       ))}
+      {messages.length > 0 && <Text style={s.h}>Automatic emails</Text>}
+      {messages.map((m) => (
+        <View key={m.id} style={[s.card, { gap: 2 }]}>
+          <Text style={{ fontWeight: '500' }}>{MESSAGE_LABEL[m.kind] ?? m.kind}</Text>
+          <Text style={{ color: m.status === 'failed' ? C.danger : C.muted }}>
+            {format(new Date(m.created_at), 'd MMM yyyy, h:mm a')} · {m.status === 'failed' ? `Not delivered: ${m.error ?? 'error'}` : m.status === 'test' ? 'Test send' : 'Sent'}
+          </Text>
+        </View>
+      ))}
+      {!!c.email && (c.emails_off
+        ? <Text style={{ color: C.muted }}>Unsubscribed from emails.</Text>
+        : c.marketing_opt_in === false && <Text style={{ color: C.muted }}>Gets reminders and aftercare. Offers and birthday emails are off.</Text>)}
+
       <Pressable onPress={remove}><Text style={{ color: '#B00020', textAlign: 'center', padding: 12 }}>Delete client</Text></Pressable>
     </Screen>
   );

@@ -1,11 +1,12 @@
 import { addWeeks, format } from 'date-fns';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { Text, TextInput } from '../../components/AppText';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import { supabase } from '../../lib/supabase';
+import { C } from '../../lib/theme';
 
 const blank = { full_name: '', phone: '', email: '', birthday: '', preferences: '', notes: '',
   follow_up_date: '', follow_up_note: '' };
@@ -17,13 +18,21 @@ export default function ClientForm() {
   const [f, setF] = useState(() => id ? blank
     : { ...blank, full_name: name ?? '', phone: phone ?? '', email: email ?? '', notes: notes ?? '' });
   const [loadError, setLoadError] = useState(false);
+  // Email consent (needs supabase/sql/client-messages.sql). Offers and birthday emails only go out when this is on.
+  const [optIn, setOptIn] = useState(false);
+  const [emailsOff, setEmailsOff] = useState(false);
+  const [hasConsent, setHasConsent] = useState(false); // false until that SQL has been run
 
   const load = useCallback(() => {
     if (!id) return;
     supabase.from('clients').select('*').eq('id', id).single().then(({ data, error }) => {
       if (error) return setLoadError(true);
       setLoadError(false);
-      if (data) setF(Object.fromEntries(Object.keys(blank).map((k) => [k, (data as any)[k] ?? ''])) as typeof blank);
+      if (!data) return;
+      setF(Object.fromEntries(Object.keys(blank).map((k) => [k, (data as any)[k] ?? ''])) as typeof blank);
+      setHasConsent('marketing_opt_in' in data);
+      setOptIn(!!data.marketing_opt_in);
+      setEmailsOff(!!data.emails_off);
     });
   }, [id]);
   useEffect(load, [load]);
@@ -34,7 +43,9 @@ export default function ClientForm() {
   async function save() {
     if (!f.full_name.trim()) return Alert.alert('Name is required');
     if (f.birthday && !/^\d{4}-\d{2}-\d{2}$/.test(f.birthday)) return Alert.alert('Birthday must look like 1990-05-21');
-    const row = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.trim() || null]));
+    const row: Record<string, string | boolean | null> = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.trim() || null]));
+    // Only send consent once the database has the column, so saving still works before the SQL is run
+    if (hasConsent || optIn) row.marketing_opt_in = optIn;
     if (id) {
       const { error } = await supabase.from('clients').update(row).eq('id', id);
       if (error) return Alert.alert('Save failed', error.message);
@@ -55,6 +66,15 @@ export default function ClientForm() {
       <TextInput style={s.in} placeholder="Phone (e.g. 868 555 1234)" keyboardType="phone-pad" value={f.phone} onChangeText={set('phone')} />
       <TextInput style={s.in} placeholder="Email" autoCapitalize="none" keyboardType="email-address" value={f.email} onChangeText={set('email')} />
       <TextInput style={s.in} placeholder="Birthday (YYYY-MM-DD)" value={f.birthday} onChangeText={set('birthday')} />
+      <View style={s.consent}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ fontWeight: '600' }}>Offers & birthday emails</Text>
+          <Text style={s.hint}>Only turn on if the client agreed. Reminders and aftercare are sent either way.</Text>
+        </View>
+        <Switch value={optIn} onValueChange={setOptIn} disabled={emailsOff}
+          trackColor={{ true: C.primary, false: C.border }} accessibilityLabel="Offers and birthday emails" />
+      </View>
+      {emailsOff && <Text style={s.hint}>This client unsubscribed from all emails, so none are sent.</Text>}
       <TextInput style={[s.in, s.multi]} multiline placeholder="Preferences (products, style)" value={f.preferences} onChangeText={set('preferences')} />
       <TextInput style={[s.in, s.multi]} multiline placeholder="Notes" value={f.notes} onChangeText={set('notes')} />
 
@@ -76,6 +96,8 @@ const s = StyleSheet.create({
   in: { backgroundColor: 'white', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#eee' },
   multi: { minHeight: 80, textAlignVertical: 'top' },
   label: { fontWeight: '600', marginTop: 4 },
+  consent: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'white', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#eee' },
+  hint: { color: C.muted, fontSize: 12 },
   chips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   chip: { backgroundColor: 'white', borderWidth: 1, borderColor: '#9D3438', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
