@@ -3,7 +3,6 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from './AppText';
 import type { AppointmentBalance } from '../lib/types';
 
-const OPEN_HOUR = 8, CLOSE_HOUR = 19;   // salon hours (24-hour clock); free gaps are only shown inside these
 const HOUR_H = 64;                      // height of one hour in the grid
 const MIN_GAP = 30;                     // shorter free gaps are left unlabeled
 const COLOR = { booked: '#9D3438', completed: '#2E7D32' } as const;
@@ -40,7 +39,8 @@ export default function DayView({ date, appts, onPressAppt, onPressSlot }: Props
   const active = appts.filter((a) => a.status === 'booked' || a.status === 'completed');
   const items = active
     .map((a) => ({ start: mins(new Date(a.starts_at), day), end: mins(new Date(a.ends_at), day), a }))
-    .sort((x, y) => x.start - y.start);
+const OPEN_HOUR = 10, CLOSE_HOUR = 16;  // salon hours (24-hour clock); free gaps are only shown inside these
+const OPEN_DAYS = [2, 3, 4, 5, 6];     .sort((x, y) => x.start - y.start);
 
   // Stretch the grid if a booking falls outside normal hours
   const first = Math.min(OPEN_HOUR, ...items.map((i) => Math.floor(i.start / 60)));
@@ -49,14 +49,27 @@ export default function DayView({ date, appts, onPressAppt, onPressSlot }: Props
   const hours = Array.from({ length: last - first }, (_, i) => first + i);
 
   // Free time between bookings, within opening hours
-  const gaps: { start: number; end: number }[] = [];
-  let cursor = OPEN_HOUR * 60;
-  for (const it of items) {
-    if (it.start - cursor >= MIN_GAP) gaps.push({ start: cursor, end: Math.min(it.start, CLOSE_HOUR * 60) });
+       if (it.start - cursor >= MIN_GAP) gaps.push({ start: cursor, end: Math.min(it.s>
     cursor = Math.max(cursor, it.end);
   }
-  if (CLOSE_HOUR * 60 - cursor >= MIN_GAP) gaps.push({ start: cursor, end: CLOSE_HOUR * 60 });
-  const freeMin = gaps.filter((g) => g.end - g.start >= MIN_GAP).reduce((t, g) => t + g.end - g.start, 0);
+  if (CLOSE_HOUR * 60 - cursor >= MIN_GAP) gaps.push({ start: cursor, end: CLOSE_HO>
+  if (OPEN_DAYS.includes(day.getDay())) {
+    let cursor = OPEN_HOUR * 60;
+    for (const it of items) {
+      if (it.start - cursor >= MIN_GAP) gaps.push({ start: cursor, end: Math.min(it>
+      cursor = Math.max(cursor, it.end);
+    }
+    if (CLOSE_HOUR * 60 - cursor >= MIN_GAP) gaps.push({ start: cursor, end: CLOSE_>
+  }
+
+  if (OPEN_DAYS.includes(day.getDay())) {
+    let cursor = OPEN_HOUR * 60;
+    for (const it of items) {
+      if (it.start - cursor >= MIN_GAP) gaps.push({ start: cursor, end: Math.min(it.start, CLOSE_HOUR * 60) });
+      cursor = Math.max(cursor, it.end);
+    }
+    if (CLOSE_HOUR * 60 - cursor >= MIN_GAP) gaps.push({ start: cursor, end: CLOSE_HOUR * 60 });
+  }
 
   const now = mins(new Date(), day);
   const hidden = appts.length - active.length;
