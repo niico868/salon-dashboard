@@ -53,8 +53,8 @@ function content(kind: Kind, d: EmailData): { subject: string; blocks: Block[] }
         { button: 'Book my next session' },
       ] };
     case 'rebook_2m':
-      return { subject: 'We miss you at Melt Aways', blocks: [
-        { p: `Hi ${d.firstName}, it has been a little while since your last visit. Whenever you are ready to continue your journey, we would love to see you again.` },
+      return { subject: "Hope you're doing well and sticking to your dietary regimen", blocks: [
+        { p: `Hi ${d.firstName}, we hope you're doing well and sticking to your dietary regimen. It has been a little while since your last visit. Whenever you are ready to continue your journey, we would love to see you again.` },
         { p: 'Not sure which treatment is right for you now? Book a consultation and we will plan it together.' },
         { button: 'Book a visit' },
       ] };

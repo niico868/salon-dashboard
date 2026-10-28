@@ -10,7 +10,7 @@ Emails go out between 8 AM and 8 PM Trinidad time only; anything due overnight w
 | Aftercare | Straight after the appointment is marked **Done** | Everyone |
 | Check-in | 1 week after the visit | Everyone |
 | Rebooking offer | 1 month after their last visit | Only clients who said yes to offers, and only if they haven't booked again |
-| "We miss you" | 2 months after their last visit | Same as above |
+| "Hope you're doing well and sticking to your dietary regimen" | 2 months after their last visit | Same as above |
 | Birthday wishes | On their birthday (needs a birthday on their profile) | Only clients who said yes to offers |
 
 Nobody gets the same email twice. Clients with no email, or who unsubscribed, get nothing.
