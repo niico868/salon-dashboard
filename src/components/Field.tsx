@@ -27,12 +27,12 @@ export default function Field({ label, hint, error, required, multiline, style, 
 
 const s = StyleSheet.create({
   wrap: { gap: 6 },
-  label: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.text },
+  label: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text },
   input: { minHeight: touch.min + 4, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1,
-    borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, fontFamily: fonts.body, fontSize: 16, color: colors.text },
+    borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12, fontFamily: fonts.body, fontSize: 17, color: colors.text },
   multi: { minHeight: 96, textAlignVertical: 'top' },
   focused: { borderColor: colors.primary, borderWidth: 1.5 },
   errorBox: { borderColor: colors.danger },
-  hint: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
-  error: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.danger },
+  hint: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted },
+  error: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.danger },
 });

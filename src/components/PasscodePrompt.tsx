@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from './AppText';
-import { C, F } from '../lib/theme';
+import { colors, fonts, radius, space } from '../lib/theme';
+import Button from './Button';
 import { checkPasscode, hasPasscode, resetWithPassword, setPasscode } from '../lib/passcode';
 
 type Props = { visible: boolean; onSuccess: () => void; onCancel: () => void };
@@ -41,8 +42,9 @@ export default function PasscodePrompt({ visible, onSuccess, onCancel }: Props) 
           <Text style={s.title}>{creating ? 'Create a 4–6 digit passcode' : 'Enter passcode'}</Text>
           <TextInput style={s.input} value={code} onChangeText={setCode} keyboardType="number-pad"
             secureTextEntry maxLength={6} autoFocus onSubmitEditing={submit} />
-          <Pressable style={s.btn} onPress={submit}><Text style={s.btnText}>OK</Text></Pressable>
-          <Pressable onPress={onCancel}><Text style={s.link}>Cancel</Text></Pressable>
+          <Text style={s.hint}>{creating ? 'You will use this to edit prices and services.' : 'This keeps your prices safe from accidental changes.'}</Text>
+          <Button title={creating ? 'Save passcode' : 'Unlock'} onPress={submit} size="lg" />
+          <Button title="Cancel" variant="ghost" onPress={onCancel} />
           {!creating && <Pressable onPress={forgot}><Text style={s.link}>Forgot passcode?</Text></Pressable>}
         </View>
       </View>
@@ -51,11 +53,12 @@ export default function PasscodePrompt({ visible, onSuccess, onCancel }: Props) 
 }
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: '#0006', justifyContent: 'center', padding: 32 },
-  card: { backgroundColor: 'white', borderRadius: 16, padding: 20, gap: 12 },
-  title: { fontSize: 18, fontFamily: F.title, color: C.ink, textAlign: 'center' },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, fontSize: 24, textAlign: 'center', letterSpacing: 8 },
-  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 14, alignItems: 'center' },
-  btnText: { color: 'white', fontWeight: '600' },
-  link: { textAlign: 'center', color: '#9D3438', padding: 4 },
+  backdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'center', padding: space.xl },
+  card: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: space.xl, gap: space.md,
+    width: '100%', maxWidth: 420, alignSelf: 'center' },
+  title: { fontSize: 22, fontFamily: fonts.heading, color: colors.text, textAlign: 'center' },
+  hint: { fontSize: 15, color: colors.textMuted, textAlign: 'center' },
+  input: { borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, padding: 14, fontSize: 28,
+    textAlign: 'center', letterSpacing: 10, backgroundColor: colors.background },
+  link: { textAlign: 'center', color: colors.primary, padding: 6, fontFamily: fonts.bodyBold, fontSize: 15 },
 });
