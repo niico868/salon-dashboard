@@ -28,6 +28,6 @@ export default function StatusChip({ status, label }: { status: ChipStatus; labe
 }
 
 const s = StyleSheet.create({
-  chip: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3 },
-  text: { fontFamily: fonts.bodyBold, fontSize: 12 },
+  chip: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 5 },
+  text: { fontFamily: fonts.bodyBold, fontSize: 14 },
 });

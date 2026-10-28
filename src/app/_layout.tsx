@@ -1,11 +1,12 @@
 import type { Session } from '@supabase/supabase-js';
-import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import { router, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, View } from 'react-native';
 import { setupNotifications, syncReminders } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
+import { ToastProvider } from '../components/Toast';
+import { useBrandFonts } from '../lib/fonts';
 import { C, F } from '../lib/theme';
 import '../lib/web-alert';
 
@@ -13,13 +14,7 @@ import '../lib/web-alert';
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
-  const [fontsLoaded, fontError] = useFonts({
-    [F.script]: require('../../assets/fonts/GreatVibes-Regular.ttf'),
-    [F.body]: require('../../assets/fonts/Lato-Regular.ttf'),
-    [F.bodyBold]: require('../../assets/fonts/Lato-Bold.ttf'),
-    [F.title]: require('../../assets/fonts/PlayfairDisplay-SemiBold.ttf'),
-    [F.titleBold]: require('../../assets/fonts/PlayfairDisplay-Bold.ttf'),
-  });
+  const fontsReady = useBrandFonts();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
@@ -50,15 +45,16 @@ export default function RootLayout() {
   }, [session]);
 
   // A font that fails to download should not lock Krystal out — fall back to system fonts
-  if (!ready || (!fontsLoaded && !fontError)) return (
+  if (!ready || !fontsReady) return (
     <View style={{ flex: 1, justifyContent: 'center', backgroundColor: C.bg }}><ActivityIndicator color={C.primary} /></View>
   );
 
   return (
+    <ToastProvider>
     <Stack screenOptions={{
       headerStyle: { backgroundColor: C.bg },
       headerTintColor: C.primary,
-      headerTitleStyle: { fontFamily: F.title, color: C.ink },
+      headerTitleStyle: { fontFamily: F.title, color: C.ink, fontSize: 20 },
       headerShadowVisible: false,
       contentStyle: { backgroundColor: C.bg },
     }}>
@@ -66,14 +62,15 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="services" options={{ title: 'Service menu' }} />
         <Stack.Screen name="client/[id]" options={{ title: 'Client' }} />
-        <Stack.Screen name="client/new" options={{ title: 'Client details', presentation: 'modal' }} />
-        <Stack.Screen name="appointment/[id]" options={{ title: 'Appointment' }} />
-        <Stack.Screen name="appointment/new" options={{ title: 'Book appointment', presentation: 'modal' }} />
-        <Stack.Screen name="payment/new" options={{ title: 'Payment', presentation: 'modal' }} />
+        <Stack.Screen name="client/new" options={{ title: 'Client details' }} />
+        <Stack.Screen name="appointment/[id]" options={{ title: 'Booking' }} />
+        <Stack.Screen name="appointment/new" options={{ title: 'New booking' }} />
+        <Stack.Screen name="payment/new" options={{ title: 'Take payment' }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
       </Stack.Protected>
     </Stack>
+    </ToastProvider>
   );
 }

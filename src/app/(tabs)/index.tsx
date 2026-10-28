@@ -1,39 +1,50 @@
-import { addDays, addMonths, format, formatDistanceToNowStrict, isPast, isToday, startOfMonth, subMonths } from 'date-fns';
+import { addDays, format, formatDistanceToNowStrict, isPast, isToday } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from '../../components/AppText';
-import { C, F } from '../../lib/theme';
+import { Alert, Linking, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BarChart } from 'react-native-gifted-charts';
+import ActionPill from '../../components/ActionPill';
+import { Text } from '../../components/AppText';
+import Avatar from '../../components/Avatar';
+import BookingChip from '../../components/BookingChip';
+import Button from '../../components/Button';
+import Card from '../../components/Card';
+import EmptyState from '../../components/EmptyState';
+import FadeInView from '../../components/FadeInView';
+import GreetingHeader from '../../components/GreetingHeader';
+import ListRow from '../../components/ListRow';
 import LoadError from '../../components/LoadError';
+import Screen from '../../components/Screen';
+import SectionHeader from '../../components/SectionHeader';
+import { SkeletonList } from '../../components/Skeleton';
 import StatCard from '../../components/StatCard';
+import StatusChip from '../../components/StatusChip';
+import TimeBadge from '../../components/TimeBadge';
+import { useToast } from '../../components/Toast';
+import { Body, Small } from '../../components/Typography';
 import { Birthday, birthdayMessage, birthdaysWithin } from '../../lib/birthdays';
 import { TTD } from '../../lib/money';
 import { waLink } from '../../lib/phone';
 import { rangeFor, Sales, salesBetween } from '../../lib/sales';
 import { supabase } from '../../lib/supabase';
+import { colors, fonts, space } from '../../lib/theme';
 import type { AppointmentBalance, Client, Enquiry } from '../../lib/types';
 
-const GREEN = '#2E7D32', PINK = '#E3B8B7';
-const OWNER = 'Krystal';
 const SOURCE: Record<Enquiry['source'], string> = {
-  contact: 'Contact form', consultation: 'Consultation', 'treatment-finder': 'Treatment finder', visit: 'Visiting', other: 'Website',
+  contact: 'Contact form', consultation: 'Consultation request', 'treatment-finder': 'Treatment finder', visit: 'Visit request', other: 'Website',
 };
 
-function greeting(d = new Date()) {
-  const h = d.getHours();
-  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-}
-
 export default function Dashboard() {
+  const insets = useSafeAreaInsets();
+  const toast = useToast();
+  const [loaded, setLoaded] = useState(false);
   const [today, setToday] = useState<Sales | null>(null);
   const [week, setWeek] = useState<Sales | null>(null);
   const [todayList, setTodayList] = useState<AppointmentBalance[]>([]);
   const [upcoming, setUpcoming] = useState<AppointmentBalance[]>([]);
   const [followUps, setFollowUps] = useState<Client[]>([]);
   const [birthdays, setBirthdays] = useState<Birthday<Client>[]>([]);
-  const [months, setMonths] = useState<{ label: string; value: number }[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
   // null = couldn't load (e.g. the enquiries table isn't set up yet); the rest of Home still shows
   const [enquiries, setEnquiries] = useState<Enquiry[] | null>(null);
@@ -49,7 +60,7 @@ export default function Dashboard() {
         supabase.from('appointment_balances').select('*').neq('status', 'cancelled')
           .gte('starts_at', d.from.toISOString()).lt('starts_at', d.to.toISOString()).order('starts_at'),
         supabase.from('appointment_balances').select('*').eq('status', 'booked')
-          .gte('starts_at', d.to.toISOString()).lt('starts_at', w.to.toISOString()).order('starts_at').limit(5),
+          .gte('starts_at', d.to.toISOString()).lt('starts_at', addDays(d.to, 7).toISOString()).order('starts_at').limit(5),
         supabase.from('clients').select('*').not('follow_up_date', 'is', null)
           .lte('follow_up_date', format(addDays(now, 7), 'yyyy-MM-dd')).order('follow_up_date'),
         supabase.from('clients').select('*').not('birthday', 'is', null),
@@ -61,14 +72,11 @@ export default function Dashboard() {
       setUpcoming((next.data as AppointmentBalance[]) ?? []);
       setFollowUps((fu.data as Client[]) ?? []);
       setBirthdays(birthdaysWithin((bd.data as Client[]) ?? [], now));
-
-      // Six months of received revenue, oldest first
-      const starts = Array.from({ length: 6 }, (_, i) => startOfMonth(subMonths(now, 5 - i)));
-      const totals = await Promise.all(starts.map((m) => salesBetween(m, addMonths(m, 1))));
-      setMonths(starts.map((m, i) => ({ label: format(m, 'MMM'), value: totals[i].actual })));
       setLoadError(false);
     } catch {
       setLoadError(true);
+    } finally {
+      setLoaded(true);
     }
   }, []);
 
@@ -79,10 +87,12 @@ export default function Dashboard() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); loadEnquiries(); }, [load, loadEnquiries]));
+  const refresh = () => Promise.all([load(), loadEnquiries()]);
 
   async function enquiryDone(id: string) {
     const { error } = await supabase.from('enquiries').update({ status: 'done', handled_at: new Date().toISOString() }).eq('id', id);
     if (error) return Alert.alert('Update failed', error.message);
+    toast.show('Message marked as handled');
     loadEnquiries();
   }
 
@@ -96,158 +106,174 @@ export default function Dashboard() {
   async function clearFollowUp(id: string) {
     const { error } = await supabase.from('clients').update({ follow_up_date: null, follow_up_note: null }).eq('id', id);
     if (error) return Alert.alert('Update failed', error.message);
+    toast.show('Follow-up done');
     load();
   }
 
   const weekBars = (week?.days ?? []).map((d) => ({
     label: format(d.date, 'EEEEE'),
-    stacks: [{ value: d.actual, color: GREEN }, { value: d.potential, color: PINK }],
+    stacks: [{ value: d.actual, color: colors.chartReceived }, { value: d.potential, color: colors.chartDue }],
   }));
 
-  const refresh = <RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await Promise.all([load(), loadEnquiries()]); setRefreshing(false); }} />;
-
-  // Show the retry card instead of TT$0.00 tiles that look like real figures
-  if (loadError) return (
-    <ScrollView contentContainerStyle={s.page} refreshControl={refresh}>
-      <Text style={s.date}>{format(new Date(), 'EEEE d MMMM')}</Text>
-      <LoadError onRetry={load} />
-    </ScrollView>
-  );
+  const stillToCollect = today?.potential ?? 0;
+  const activeToday = todayList.filter((a) => a.status !== 'no_show');
+  const summary = !loaded ? undefined
+    : activeToday.length === 0 ? 'No bookings today.'
+    : `${activeToday.length} booking${activeToday.length === 1 ? '' : 's'} today` +
+      (stillToCollect > 0 ? ` · ${TTD(stillToCollect)} still to collect` : ' · all paid');
+  const attention = (enquiries?.length ?? 0) + followUps.length + birthdays.length;
 
   return (
-    <ScrollView contentContainerStyle={s.page} refreshControl={refresh}>
-      <Text style={s.hello}>{greeting()}, {OWNER}</Text>
-      <Text style={s.date}>{format(new Date(), 'EEEE d MMMM')}</Text>
+    <Screen onRefresh={refresh} style={{ paddingTop: insets.top + space.md }}>
+      <GreetingHeader summary={summary} />
 
-      <View style={s.grid}>
-        <StatCard label="Today received" value={TTD(today?.actual ?? 0)} color={GREEN} />
-        <StatCard label="Today still due" value={TTD(today?.potential ?? 0)} color="#9D3438" />
-        <StatCard label="Week received" value={TTD(week?.actual ?? 0)} color={GREEN} />
-        <StatCard label="Week expected" value={TTD(week?.expected ?? 0)} />
+      <View style={s.quick}>
+        <Button title="New booking" icon="add-circle" size="lg" style={{ flex: 1, paddingHorizontal: 10 }}
+          onPress={() => router.push('/appointment/new')} />
+        <Button title="Add client" icon="person-add" size="lg" variant="outline" style={{ flex: 1, paddingHorizontal: 10 }}
+          onPress={() => router.push('/client/new')} />
       </View>
 
-      {enquiries && (
+      {loadError && <LoadError onRetry={load} />}
+      {!loaded && <SkeletonList count={3} />}
+
+      {loaded && !loadError && (
         <>
-          <Text style={s.h}>Website enquiries{enquiries.length ? ` · ${enquiries.length}` : ''}</Text>
-          {enquiries.length === 0 && <Text style={s.muted}>No new messages from the website.</Text>}
-          {enquiries.map((e) => (
-            <View key={e.id} style={s.enquiry}>
-              <Pressable disabled={!e.client_id} onPress={() => router.push(`/client/${e.client_id}`)}>
-                <Text style={{ fontWeight: '600' }}>{e.name}{e.client_id ? '  ›' : ''}</Text>
-                <Text style={s.muted}>
-                  {SOURCE[e.source]} · {formatDistanceToNowStrict(new Date(e.created_at), { addSuffix: true })}
-                  {e.client_id ? ' · existing client' : ' · new'}
-                </Text>
-              </Pressable>
-              {!!e.message && <Text numberOfLines={4}>{e.message}</Text>}
+          <SectionHeader title="Today" count={activeToday.length}
+            actionLabel="Open calendar" onAction={() => router.push('/calendar')} />
+          {todayList.length === 0 ? (
+            <Card style={{ padding: 0 }}>
+              <EmptyState icon="sunny-outline" title="No bookings today" message="Enjoy the quiet, or add a booking."
+                actionLabel="Book an appointment" onAction={() => router.push('/appointment/new')} />
+            </Card>
+          ) : todayList.map((a, i) => (
+            <FadeInView key={a.id} index={i}>
+              <ListRow title={a.client_name} subtitle={a.service_name}
+                left={<TimeBadge date={new Date(a.starts_at)} />}
+                right={<BookingChip a={a} />}
+                accent={a.status === 'completed' ? colors.success : undefined}
+                onPress={() => router.push(`/appointment/${a.id}`)} />
+            </FadeInView>
+          ))}
+
+          <SectionHeader title="Money" />
+          <View style={s.grid}>
+            <StatCard label="Taken today" icon="checkmark-circle" amount={today?.actual ?? 0} format={TTD}
+              color={colors.success} index={0} />
+            <StatCard label="Still to collect today" icon="time" amount={stillToCollect} format={TTD}
+              color={stillToCollect > 0 ? colors.primary : colors.text} index={1} />
+            <StatCard label="Taken this week" amount={week?.actual ?? 0} format={TTD} color={colors.success} index={2} />
+            <StatCard label="Expected this week" amount={week?.expected ?? 0} format={TTD} index={3} />
+          </View>
+
+          {attention > 0 && <SectionHeader title="Needs your attention" count={attention} />}
+
+          {(enquiries ?? []).map((e) => (
+            <Card key={e.id} style={s.enquiry}>
+              <View style={s.line}>
+                <Avatar name={e.name} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.name}>{e.name}</Text>
+                  <Small>{SOURCE[e.source]} · {formatDistanceToNowStrict(new Date(e.created_at), { addSuffix: true })}</Small>
+                </View>
+                <StatusChip status="website" label={e.client_id ? 'Client' : 'New'} />
+              </View>
+              {!!e.message && <Body numberOfLines={5}>{e.message}</Body>}
               <View style={s.actions}>
                 {e.phone ? (
-                  <Pressable onPress={() => Linking.openURL(waLink(e.phone!,
-                    `Hi ${e.name.split(' ')[0]}, thank you for reaching out to Melt Aways! `))}>
-                    <Text style={{ color: GREEN, fontWeight: '600' }}>WhatsApp</Text>
-                  </Pressable>
+                  <ActionPill label="WhatsApp" icon="logo-whatsapp" tone="whatsapp"
+                    onPress={() => Linking.openURL(waLink(e.phone!, `Hi ${e.name.split(' ')[0]}, thank you for reaching out to Melt Aways! `))} />
                 ) : e.email ? (
-                  <Pressable onPress={() => Linking.openURL(`mailto:${e.email}?subject=${encodeURIComponent('Your Melt Aways enquiry')}`)}>
-                    <Text style={{ color: GREEN, fontWeight: '600' }}>Email</Text>
-                  </Pressable>
+                  <ActionPill label="Email" icon="mail" tone="plain"
+                    onPress={() => Linking.openURL(`mailto:${e.email}?subject=${encodeURIComponent('Your Melt Aways enquiry')}`)} />
                 ) : null}
-                {!e.client_id && (
-                  <Pressable onPress={() => addAsClient(e)}><Text style={{ color: C.primary, fontWeight: '600' }}>Add client</Text></Pressable>
-                )}
-                <Pressable onPress={() => enquiryDone(e.id)} style={{ marginLeft: 'auto' }}>
-                  <Text style={{ color: C.muted, fontWeight: '600' }}>Done</Text>
-                </Pressable>
+                {e.client_id
+                  ? <ActionPill label="View client" icon="person" onPress={() => router.push(`/client/${e.client_id}`)} />
+                  : <ActionPill label="Save as client" icon="person-add" onPress={() => addAsClient(e)} />}
+                <ActionPill label="Handled" icon="checkmark" tone="success" onPress={() => enquiryDone(e.id)} />
               </View>
-            </View>
+            </Card>
           ))}
+
+          {followUps.map((c) => {
+            const due = new Date(c.follow_up_date + 'T12:00');
+            const overdue = isPast(due) && !isToday(due);
+            return (
+              <Card key={c.id}>
+                <View style={s.line}>
+                  <Avatar name={c.full_name} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.name}>Follow up with {c.full_name}</Text>
+                    <Small>{isToday(due) ? 'Due today' : `Due ${format(due, 'EEE d MMM')}`}</Small>
+                  </View>
+                  {overdue && <StatusChip status="overdue" />}
+                </View>
+                {!!c.follow_up_note && <Body>{c.follow_up_note}</Body>}
+                <View style={s.actions}>
+                  {c.phone && <ActionPill label="WhatsApp" icon="logo-whatsapp" tone="whatsapp"
+                    onPress={() => Linking.openURL(waLink(c.phone!))} />}
+                  <ActionPill label="View client" icon="person" onPress={() => router.push(`/client/${c.id}`)} />
+                  <ActionPill label="Done" icon="checkmark" tone="success" onPress={() => clearFollowUp(c.id)} />
+                </View>
+              </Card>
+            );
+          })}
+
+          {birthdays.map(({ client: c, date, turning }) => (
+            <Card key={c.id}>
+              <View style={s.line}>
+                <View style={s.cake}><Text style={{ fontSize: 22 }}>🎂</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.name}>{c.full_name}'s birthday</Text>
+                  <Small style={isToday(date) ? { color: colors.primary, fontFamily: fonts.bodyBold } : undefined}>
+                    {isToday(date) ? 'Today!' : format(date, 'EEEE d MMMM')}{turning ? ` · turning ${turning}` : ''}
+                  </Small>
+                </View>
+              </View>
+              <View style={s.actions}>
+                {c.phone && <ActionPill label="Send wishes" icon="logo-whatsapp" tone="whatsapp"
+                  onPress={() => Linking.openURL(waLink(c.phone!, birthdayMessage(c.full_name)))} />}
+                <ActionPill label="View client" icon="person" onPress={() => router.push(`/client/${c.id}`)} />
+              </View>
+            </Card>
+          ))}
+
+          <SectionHeader title="Coming up" actionLabel="See all" onAction={() => router.push('/calendar')} />
+          {upcoming.length === 0
+            ? <Body style={{ color: colors.textMuted }}>Nothing booked for the next 7 days.</Body>
+            : upcoming.map((a) => (
+              <ListRow key={a.id} title={a.client_name} subtitle={`${format(new Date(a.starts_at), 'EEEE d MMM')} · ${a.service_name}`}
+                left={<TimeBadge date={new Date(a.starts_at)} showDay />}
+                onPress={() => router.push(`/appointment/${a.id}`)} />
+            ))}
+
+          <SectionHeader title="This week" actionLabel="Sales details" onAction={() => router.push('/sales')} />
+          <Card>
+            <Small>{week?.bookings ?? 0} bookings this week</Small>
+            <BarChart stackData={weekBars} barWidth={24} spacing={16} height={150} noOfSections={3}
+              yAxisThickness={0} xAxisThickness={0} rulesColor={colors.border}
+              yAxisTextStyle={{ color: colors.textMuted, fontSize: 12, fontFamily: fonts.body }}
+              xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 13, fontFamily: fonts.bodyBold }} />
+            <View style={s.legend}>
+              <View style={s.legendItem}><View style={[s.dot, { backgroundColor: colors.chartReceived }]} /><Small>Taken</Small></View>
+              <View style={s.legendItem}><View style={[s.dot, { backgroundColor: colors.chartDue }]} /><Small>Still to collect</Small></View>
+            </View>
+          </Card>
         </>
       )}
-
-      <Text style={s.h}>Today · {todayList.length} booking{todayList.length === 1 ? '' : 's'}</Text>
-      {todayList.length === 0 && <Text style={s.muted}>Nothing booked today.</Text>}
-      {todayList.map((a) => (
-        <Pressable key={a.id} style={s.row} onPress={() => router.push(`/appointment/${a.id}`)}>
-          <Text style={s.time}>{format(new Date(a.starts_at), 'h:mm a')}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontWeight: '600' }}>{a.client_name}</Text>
-            <Text style={s.muted}>{a.service_name}</Text>
-          </View>
-          <Text style={{ color: Number(a.balance) > 0 ? '#9D3438' : GREEN, fontWeight: '600' }}>
-            {Number(a.balance) > 0 ? `owes ${TTD(Number(a.balance))}` : 'paid'}
-          </Text>
-        </Pressable>
-      ))}
-
-      <Text style={s.h}>This week · {week?.bookings ?? 0} bookings</Text>
-      <View style={s.card}>
-        <BarChart stackData={weekBars} barWidth={22} spacing={18} height={150} noOfSections={3}
-          yAxisThickness={0} xAxisThickness={0} yAxisTextStyle={{ color: '#999', fontSize: 10 }}
-          xAxisLabelTextStyle={{ color: '#999', fontSize: 10 }} />
-        <Text style={[s.muted, { textAlign: 'center' }]}><Text style={{ color: GREEN }}>■</Text> Received   <Text style={{ color: PINK }}>■</Text> Still due</Text>
-      </View>
-      {upcoming.map((a) => (
-        <Pressable key={a.id} style={s.row} onPress={() => router.push(`/appointment/${a.id}`)}>
-          <Text style={s.time}>{format(new Date(a.starts_at), 'EEE h:mm a')}</Text>
-          <Text style={{ flex: 1 }}>{a.client_name} · {a.service_name}</Text>
-        </Pressable>
-      ))}
-
-      <Text style={s.h}>Birthdays this week</Text>
-      {birthdays.length === 0 && <Text style={s.muted}>No birthdays in the next 7 days.</Text>}
-      {birthdays.map(({ client: c, date, turning }) => (
-        <View key={c.id} style={s.row}>
-          <Pressable style={{ flex: 1 }} onPress={() => router.push(`/client/${c.id}`)}>
-            <Text style={{ fontWeight: '600' }}>🎂 {c.full_name}</Text>
-            <Text style={{ color: isToday(date) ? '#9D3438' : '#777' }}>
-              {isToday(date) ? 'Today' : format(date, 'EEE d MMM')}{turning ? ` · turning ${turning}` : ''}
-            </Text>
-          </Pressable>
-          {c.phone && (
-            <Pressable onPress={() => Linking.openURL(waLink(c.phone!, birthdayMessage(c.full_name)))}>
-              <Text style={{ color: GREEN, fontWeight: '600' }}>Message</Text>
-            </Pressable>
-          )}
-        </View>
-      ))}
-
-      <Text style={s.h}>Follow-ups</Text>
-      {followUps.length === 0 && <Text style={s.muted}>No follow-ups due this week.</Text>}
-      {followUps.map((c) => {
-        const due = new Date(c.follow_up_date + 'T12:00');
-        const overdue = isPast(due) && !isToday(due);
-        return (
-          <View key={c.id} style={s.row}>
-            <Pressable style={{ flex: 1 }} onPress={() => router.push(`/client/${c.id}`)}>
-              <Text style={{ fontWeight: '600' }}>{c.full_name}</Text>
-              <Text style={{ color: overdue ? '#B00020' : '#777' }}>
-                {overdue ? 'Overdue · ' : ''}{format(due, 'EEE d MMM')}{c.follow_up_note ? ` · ${c.follow_up_note}` : ''}
-              </Text>
-            </Pressable>
-            <Pressable onPress={() => clearFollowUp(c.id)}><Text style={{ color: GREEN, fontWeight: '600' }}>Done</Text></Pressable>
-          </View>
-        );
-      })}
-
-      <Text style={s.h}>Received, last 6 months</Text>
-      <View style={s.card}>
-        <BarChart data={months.map((m) => ({ value: m.value, label: m.label, frontColor: GREEN }))}
-          barWidth={26} spacing={16} height={150} noOfSections={3} yAxisThickness={0} xAxisThickness={0}
-          yAxisTextStyle={{ color: '#999', fontSize: 10 }} xAxisLabelTextStyle={{ color: '#999', fontSize: 10 }} />
-      </View>
-    </ScrollView>
+    </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  page: { padding: 16, gap: 10, backgroundColor: '#FFFCF9' },
-  hello: { fontFamily: F.script, fontSize: 38, lineHeight: 50, color: C.gold },
-  date: { fontSize: 22, fontFamily: F.title, color: C.ink },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  h: { fontFamily: F.title, color: C.ink, fontSize: 17, marginTop: 8 },
-  muted: { color: '#777' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'white', padding: 12, borderRadius: 12 },
-  time: { width: 80, fontWeight: '600' },
-  card: { backgroundColor: 'white', borderRadius: 12, padding: 12, gap: 6 },
-  enquiry: { backgroundColor: 'white', borderRadius: 12, padding: 12, gap: 6, borderLeftWidth: 3, borderLeftColor: C.rose },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 2 },
+  quick: { flexDirection: 'row', gap: space.md, marginTop: space.sm },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
+  line: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  name: { fontFamily: fonts.bodyBold, fontSize: 17 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.xs },
+  enquiry: { borderLeftWidth: 5, borderLeftColor: colors.rose },
+  cake: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.blush, alignItems: 'center', justifyContent: 'center' },
+  legend: { flexDirection: 'row', justifyContent: 'center', gap: space.xl },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 12, height: 12, borderRadius: 3 },
 });

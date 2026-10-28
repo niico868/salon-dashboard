@@ -12,7 +12,7 @@ function brand(style: TextProps['style']): TextStyle {
   if (flat.fontFamily) return flat;
   const { fontWeight, ...rest } = flat;
   const bold = fontWeight != null && Number(fontWeight === 'bold' ? 700 : fontWeight) >= 600;
-  return { color: C.ink, ...rest, fontFamily: bold ? F.bodyBold : F.body };
+  return { color: C.ink, fontSize: 16, ...rest, fontFamily: bold ? F.bodyBold : F.body };
 }
 
 export const Text = forwardRef<RNText, TextProps>(function Text({ style, ...p }, ref) {
