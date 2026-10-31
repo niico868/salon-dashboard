@@ -1,7 +1,7 @@
 import { addWeeks, format } from 'date-fns';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { Text } from '../../components/AppText';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
@@ -31,13 +31,21 @@ export default function ClientForm() {
   const [birthdayError, setBirthdayError] = useState('');
 
   useEffect(() => { navigation.setOptions({ title: id ? 'Edit client' : 'New client' }); }, [navigation, id]);
+  // Email consent (needs supabase/sql/client-messages.sql). Offers and birthday emails only go out when this is on.
+  const [optIn, setOptIn] = useState(false);
+  const [emailsOff, setEmailsOff] = useState(false);
+  const [hasConsent, setHasConsent] = useState(false); // false until that SQL has been run
 
   const load = useCallback(() => {
     if (!id) return;
     supabase.from('clients').select('*').eq('id', id).single().then(({ data, error }) => {
       if (error) return setLoadError(true);
       setLoadError(false);
-      if (data) setF(Object.fromEntries(Object.keys(blank).map((k) => [k, (data as any)[k] ?? ''])) as typeof blank);
+      if (!data) return;
+      setF(Object.fromEntries(Object.keys(blank).map((k) => [k, (data as any)[k] ?? ''])) as typeof blank);
+      setHasConsent('marketing_opt_in' in data);
+      setOptIn(!!data.marketing_opt_in);
+      setEmailsOff(!!data.emails_off);
     });
   }, [id]);
   useEffect(load, [load]);
@@ -50,7 +58,9 @@ export default function ClientForm() {
     if (!f.full_name.trim()) return setNameError('Please type the client\'s name.');
     if (f.birthday && !/^\d{4}-\d{2}-\d{2}$/.test(f.birthday.trim()))
       return setBirthdayError('Write it as year-month-day, for example 1985-05-21.');
-    const row = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.trim() || null]));
+    const row: Record<string, string | boolean | null> = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.trim() || null]));
+    // Only send consent once the database has the column, so saving still works before the SQL is run
+    if (hasConsent || optIn) row.marketing_opt_in = optIn;
     setSaving(true);
     try {
       if (id) {
@@ -91,6 +101,19 @@ export default function ClientForm() {
       </Card>
 
       <Card>
+        <Heading>Emails</Heading>
+        <View style={s.consent}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={s.consentLabel}>Offers & birthday emails</Text>
+            <Small>Only turn on if the client agreed. Reminders and aftercare are sent either way.</Small>
+          </View>
+          <Switch value={optIn} onValueChange={setOptIn} disabled={emailsOff}
+            trackColor={{ true: colors.primary, false: colors.border }} accessibilityLabel="Offers and birthday emails" />
+        </View>
+        {emailsOff && <Small>This client unsubscribed from all emails, so none are sent.</Small>}
+      </Card>
+
+      <Card>
         <Heading>About them</Heading>
         <Field label="Preferences" multiline value={f.preferences} onChangeText={set('preferences')}
           placeholder="e.g. Likes firm pressure, sensitive skin, prefers mornings" />
@@ -127,4 +150,6 @@ const s = StyleSheet.create({
     paddingHorizontal: space.lg, minHeight: 44, justifyContent: 'center' },
   chipClear: { borderColor: colors.border },
   chipText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.primary },
+  consent: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  consentLabel: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text },
 });

@@ -2,7 +2,7 @@
 //
 //   GET  /website-booking                  -> { services }
 //   GET  /website-booking?date=2026-10-20  -> { services, busy: [{ starts_at, ends_at }] }  (no client details)
-//   POST /website-booking  { name, phone, email?, service_id, starts_at, notes? }  -> 201 { id, ... }
+//   POST /website-booking  { name, phone, email?, service_id, starts_at, notes?, birthday?, marketing_opt_in? }  -> 201 { id, ... }
 //   POST /website-booking  { type: 'enquiry', source, name, phone?, email?, message } -> 201 { ok: true }
 //
 // The website never gets database keys. This function uses the server-side secret key,
@@ -218,14 +218,20 @@ Deno.serve(async (req) => {
     if (clash.data.length) return reply(409, { error: 'Sorry, that time was just taken. Please pick another.' });
 
     // Returning client? Match on phone number, then on email
+    // Optional extras from the form: birthday, and the "send me offers and birthday wishes" tick box.
+    // Consent is only ever switched on here, never off (unsubscribing is done from the email link).
+    const birthday = /^\d{4}-\d{2}-\d{2}$/.test(String(b.birthday ?? '')) ? String(b.birthday) : null;
+    const extras = { ...(birthday ? { birthday } : {}), ...(b.marketing_opt_in === true ? { marketing_opt_in: true } : {}) };
+
     let client = await findClient(phone, email);
     if (!client) {
-      const created = await db.from('clients').insert({ ...owner(), full_name: name, phone, email: email || null })
+      const created = await db.from('clients').insert({ ...owner(), full_name: name, phone, email: email || null, ...extras })
         .select('id, phone, email').single();
       if (created.error) throw created.error;
       client = created.data;
-    } else if (email && !client.email) {
-      await db.from('clients').update({ email }).eq('id', client.id);
+    } else {
+      const update = { ...(email && !client.email ? { email } : {}), ...extras };
+      if (Object.keys(update).length) await db.from('clients').update(update).eq('id', client.id);
     }
 
     const appt = await db.from('appointments').insert({
