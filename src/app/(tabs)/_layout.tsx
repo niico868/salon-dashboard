@@ -1,31 +1,33 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { C, F } from '../../lib/theme';
+import { colors, fonts } from '../../lib/theme';
+
+type Icon = keyof typeof Ionicons.glyphMap;
+const icon = (on: Icon, off: Icon) => ({ color, focused }: { color: string; focused: boolean }) =>
+  <Ionicons name={focused ? on : off} color={color} size={26} />;
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   return (
     <Tabs screenOptions={{
-      tabBarActiveTintColor: C.primary,
-      tabBarInactiveTintColor: C.muted,
-      tabBarStyle: { backgroundColor: C.bg, borderTopColor: C.border },
-      tabBarLabelStyle: { fontFamily: F.body },
+      tabBarActiveTintColor: colors.primary,
+      tabBarInactiveTintColor: colors.textMuted,
+      tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, height: 66 + insets.bottom,
+        paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8) },
+      tabBarLabelStyle: { fontFamily: fonts.bodyBold, fontSize: 13 },
       headerTitleAlign: 'center',
-      headerStyle: { backgroundColor: C.bg },
-      headerTitleStyle: { fontFamily: F.title, color: C.ink, fontSize: 20 },
+      headerStyle: { backgroundColor: colors.background },
+      headerTitleStyle: { fontFamily: fonts.heading, color: colors.text, fontSize: 22 },
       headerShadowVisible: false,
-      sceneStyle: { backgroundColor: C.bg },
+      sceneStyle: { backgroundColor: colors.background },
     }}>
-      <Tabs.Screen name="index" options={{ title: 'Home',
-        tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }} />
-      <Tabs.Screen name="calendar" options={{ title: 'Calendar',
-        tabBarIcon: ({ color, size }) => <Ionicons name="calendar" color={color} size={size} /> }} />
-      <Tabs.Screen name="clients" options={{ title: 'Clients',
-        tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} /> }} />
-      <Tabs.Screen name="sales" options={{ title: 'Sales',
-        tabBarIcon: ({ color, size }) => <Ionicons name="cash" color={color} size={size} /> }} />
-      <Tabs.Screen name="more" options={{ title: 'More',
-        tabBarIcon: ({ color, size }) => <Ionicons name="menu" color={color} size={size} /> }} />
+      <Tabs.Screen name="index" options={{ title: 'Home', headerShown: false, tabBarIcon: icon('home', 'home-outline') }} />
+      <Tabs.Screen name="calendar" options={{ title: 'Calendar', tabBarIcon: icon('calendar', 'calendar-outline') }} />
+      <Tabs.Screen name="clients" options={{ title: 'Clients', tabBarIcon: icon('people', 'people-outline') }} />
+      <Tabs.Screen name="sales" options={{ title: 'Sales', tabBarIcon: icon('cash', 'cash-outline') }} />
+      <Tabs.Screen name="more" options={{ title: 'More', tabBarIcon: icon('ellipsis-horizontal-circle', 'ellipsis-horizontal-circle-outline') }} />
     </Tabs>
   );
 }

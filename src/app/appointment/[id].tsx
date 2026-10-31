@@ -1,23 +1,40 @@
+import { Ionicons } from '@expo/vector-icons';
 import { addMinutes, differenceInMinutes, format } from 'date-fns';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Alert, Share, StyleSheet, View } from 'react-native';
+import ActionPill from '../../components/ActionPill';
 import { Text } from '../../components/AppText';
-import { C, F } from '../../lib/theme';
+import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
+import Card from '../../components/Card';
 import DateTimeField from '../../components/DateTimeField';
 import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
+import { SkeletonList } from '../../components/Skeleton';
+import StatusChip from '../../components/StatusChip';
+import { useToast } from '../../components/Toast';
+import { Body, Heading, Small } from '../../components/Typography';
 import { shareAppointmentInvoice } from '../../lib/invoice';
+import { haptic } from '../../lib/motion';
 import { TTD } from '../../lib/money';
 import { cancelAppointmentReminder, scheduleAppointmentReminder } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
+import { colors, fonts, space } from '../../lib/theme';
 import type { AppointmentBalance, AppointmentStatus, Payment } from '../../lib/types';
+
+const METHOD: Record<string, string> = { cash: 'Cash', card: 'Card', transfer: 'Bank transfer', online: 'Online link' };
+const DONE_MESSAGE: Record<AppointmentStatus, string> = {
+  completed: 'Marked as done', no_show: 'Marked as no-show', cancelled: 'Booking cancelled', booked: 'Back to booked',
+};
 
 export default function AppointmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const toast = useToast();
   const [a, setA] = useState<AppointmentBalance | null>(null);
   const [pays, setPays] = useState<Payment[]>([]);
   const [loadError, setLoadError] = useState(false);
+  const [moving, setMoving] = useState(false);
 
   const load = useCallback(async () => {
     const [ar, pr] = await Promise.all([
@@ -32,12 +49,13 @@ export default function AppointmentDetail() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (loadError) return <Screen><LoadError onRetry={load} /></Screen>;
-  if (!a) return null;
+  if (!a) return <Screen><SkeletonList count={2} /></Screen>;
 
   async function setStatus(status: AppointmentStatus) {
     const { error } = await supabase.from('appointments').update({ status }).eq('id', id);
     if (error) return Alert.alert('Update failed', error.message);
     if (status !== 'booked') await cancelAppointmentReminder(id);
+    toast.show(DONE_MESSAGE[status]);
     load();
   }
   async function reschedule(newStart: Date) {
@@ -47,72 +65,130 @@ export default function AppointmentDetail() {
     if (error) return Alert.alert('Reschedule failed', error.message);
     await cancelAppointmentReminder(id);
     await scheduleAppointmentReminder(id, a!.client_name, a!.service_name, newStart);
+    toast.show('Rescheduled');
     load();
   }
   async function markPaid(paymentId: string) {
     const { error } = await supabase.from('payments').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', paymentId);
     if (error) return Alert.alert('Update failed', error.message);
+    toast.show('Payment marked as paid');
     load();
   }
 
+  const start = new Date(a.starts_at), end = new Date(a.ends_at);
+  const balance = Math.max(0, Number(a.balance));
+  const open = a.status === 'booked';
+  const chip = a.status === 'booked' ? <StatusChip status="booked" />
+    : a.status === 'completed' ? <StatusChip status="completed" />
+    : <StatusChip status={a.status} />;
+
   return (
     <Screen>
-      <Text style={s.title}>{a.client_name}</Text>
-      <Text style={s.sub}>{a.service_name} · {TTD(Number(a.price))} · {a.status}</Text>
-      {a.status === 'booked' && <DateTimeField value={new Date(a.starts_at)} onChange={reschedule} />}
-      {a.status !== 'booked' && <Text>{format(new Date(a.starts_at), 'EEE d MMM yyyy, h:mm a')}</Text>}
+      <Card>
+        <View style={s.head}>
+          <Avatar name={a.client_name} size={52} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={s.name}>{a.client_name}</Text>
+            <Body style={{ color: colors.textSoft }}>{a.service_name}</Body>
+          </View>
+          {chip}
+        </View>
+        <View style={s.when}>
+          <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+          <Body style={{ flex: 1 }}>{format(start, 'EEEE d MMMM yyyy')}</Body>
+        </View>
+        <View style={s.when}>
+          <Ionicons name="time-outline" size={20} color={colors.primary} />
+          <Body style={{ flex: 1 }}>{format(start, 'h:mm a')} to {format(end, 'h:mm a')}</Body>
+        </View>
+        {!!a.notes && (
+          <View style={s.when}>
+            <Ionicons name="document-text-outline" size={20} color={colors.primary} />
+            <Body style={{ flex: 1 }}>{a.notes}</Body>
+          </View>
+        )}
+        <View style={s.actions}>
+          <ActionPill label="View client" icon="person" onPress={() => router.push(`/client/${a.client_id}`)} />
+          {open && <ActionPill label={moving ? 'Close' : 'Change time'} icon="swap-horizontal"
+            onPress={() => setMoving(!moving)} />}
+        </View>
+        {open && moving && (
+          <View style={{ gap: space.xs }}>
+            <Small>Pick the new date and time. It saves as soon as you change it.</Small>
+            <DateTimeField value={start} onChange={reschedule} />
+          </View>
+        )}
+      </Card>
 
-      <View style={s.card}>
-        <Text>Paid: {TTD(Number(a.paid))}</Text>
-        <Text style={{ fontWeight: '700' }}>Balance: {TTD(Math.max(0, Number(a.balance)))}</Text>
+      <Card>
+        <Heading>Payment</Heading>
+        <View style={s.moneyRow}><Body>Price</Body><Body style={s.bold}>{TTD(Number(a.price))}</Body></View>
+        <View style={s.moneyRow}><Body>Paid so far</Body><Body style={[s.bold, { color: colors.success }]}>{TTD(Number(a.paid))}</Body></View>
+        <View style={[s.moneyRow, s.balanceRow]}>
+          <Text style={s.balanceLabel}>Still owes</Text>
+          <Text style={[s.balance, { color: balance > 0 ? colors.primary : colors.success }]}>
+            {balance > 0 ? TTD(balance) : 'Nothing'}
+          </Text>
+        </View>
+        {pays.length > 0 && <Small style={{ marginTop: space.sm }}>Payments</Small>}
         {pays.map((p) => (
-          <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={[s.sub, { flex: 1 }]}>{p.method} · {TTD(Number(p.amount))} · {p.status}</Text>
-            {p.status === 'pending' && (
-              <>
-                <Pressable onPress={() => markPaid(p.id)}><Text style={{ color: '#2E7D32', fontWeight: '600' }}>Mark paid</Text></Pressable>
-                {p.payment_url && (
-                  <Pressable onPress={() => Share.share({ message: `Your payment link: ${p.payment_url}` })}>
-                    <Text style={{ color: '#9D3438' }}>Resend</Text></Pressable>
-                )}
-              </>
-            )}
+          <View key={p.id} style={s.payment}>
+            <View style={{ flex: 1 }}>
+              <Body>{TTD(Number(p.amount))} · {METHOD[p.method] ?? p.method}</Body>
+              <Small>{p.paid_at ? format(new Date(p.paid_at), 'd MMM yyyy') : 'Waiting for client to pay'}</Small>
+            </View>
+            {p.status === 'pending' ? (
+              <View style={{ gap: space.xs, alignItems: 'flex-end' }}>
+                <ActionPill label="Mark paid" icon="checkmark" tone="success" onPress={() => markPaid(p.id)} />
+                {p.payment_url && <ActionPill label="Resend link" icon="share-outline"
+                  onPress={() => Share.share({ message: `Your payment link: ${p.payment_url}` })} />}
+              </View>
+            ) : <StatusChip status={p.status === 'paid' ? 'paid' : 'cancelled'} label={p.status === 'paid' ? 'Paid' : p.status} />}
           </View>
         ))}
-        {a.status !== 'cancelled' && (
-          <Pressable onPress={() => shareAppointmentInvoice(a.id)}><Text style={{ color: '#9D3438', fontWeight: '600' }}>Invoice PDF</Text></Pressable>
+        {balance > 0 && a.status !== 'cancelled' && (
+          <Button title={`Take payment (${TTD(balance)})`} icon="cash-outline" size="lg"
+            onPress={() => router.push(`/payment/new?appointmentId=${id}`)} style={{ marginTop: space.sm }} />
         )}
-      </View>
+        {a.status !== 'cancelled' && (
+          <Button title="Share invoice (PDF)" icon="document-text-outline" variant="outline"
+            onPress={() => shareAppointmentInvoice(a.id)} />
+        )}
+      </Card>
 
-      {Number(a.balance) > 0 && a.status !== 'cancelled' && (
-        <Pressable style={s.btn} onPress={() => router.push(`/payment/new?appointmentId=${id}`)}>
-          <Text style={s.btnText}>Take payment</Text>
-        </Pressable>
+      {open ? (
+        <Card>
+          <Heading>How did it go?</Heading>
+          <Button title="Mark as done" icon="checkmark-circle" variant="success" size="lg" onPress={() => setStatus('completed')} />
+          <View style={s.twoUp}>
+            <Button title="Didn't show up" icon="person-remove-outline" variant="outline" style={{ flex: 1 }}
+              onPress={() => setStatus('no_show')} />
+            <Button title="Cancel booking" icon="close-circle-outline" variant="danger" style={{ flex: 1 }} onPress={() => {
+              haptic.warning();
+              Alert.alert('Cancel this booking?', `${a.client_name} · ${format(start, 'EEE d MMM, h:mm a')}`, [
+                { text: 'Keep it', style: 'cancel' },
+                { text: 'Cancel booking', style: 'destructive', onPress: () => setStatus('cancelled') },
+              ]);
+            }} />
+          </View>
+        </Card>
+      ) : (
+        <Button title="Undo: put back to booked" icon="arrow-undo-outline" variant="ghost" onPress={() => setStatus('booked')} />
       )}
-
-      {a.status === 'booked' && (
-        <View style={s.row}>
-          <Pressable style={[s.small, { backgroundColor: '#2E7D32' }]} onPress={() => setStatus('completed')}><Text style={s.btnText}>Done</Text></Pressable>
-          <Pressable style={[s.small, { backgroundColor: '#757575' }]} onPress={() => setStatus('no_show')}><Text style={s.btnText}>No-show</Text></Pressable>
-          <Pressable style={[s.small, { backgroundColor: '#B00020' }]} onPress={() =>
-            Alert.alert('Cancel appointment?', '', [{ text: 'Keep' }, { text: 'Cancel it', style: 'destructive', onPress: () => setStatus('cancelled') }])}>
-            <Text style={s.btnText}>Cancel</Text></Pressable>
-        </View>
-      )}
-      {a.status !== 'booked' && (
-        <Pressable onPress={() => setStatus('booked')}><Text style={{ color: '#9D3438', textAlign: 'center' }}>Undo (back to booked)</Text></Pressable>
-      )}
-      <Pressable onPress={() => router.push(`/client/${a.client_id}`)}><Text style={{ color: '#9D3438', textAlign: 'center' }}>View client</Text></Pressable>
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  title: { fontSize: 22, fontFamily: F.title, color: C.ink },
-  sub: { color: '#777' },
-  card: { backgroundColor: 'white', borderRadius: 12, padding: 14, gap: 4 },
-  btn: { backgroundColor: '#9D3438', borderRadius: 10, padding: 14, alignItems: 'center' },
-  btnText: { color: 'white', fontWeight: '600' },
-  row: { flexDirection: 'row', gap: 8 },
-  small: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center' },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.xs },
+  name: { fontFamily: fonts.title, fontSize: 22, lineHeight: 28 },
+  when: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.xs },
+  moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  bold: { fontFamily: fonts.bodyBold },
+  balanceRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: space.sm, marginTop: space.xs },
+  balanceLabel: { fontFamily: fonts.bodyBold, fontSize: 18 },
+  balance: { fontFamily: fonts.title, fontSize: 24 },
+  payment: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  twoUp: { flexDirection: 'row', gap: space.sm },
 });

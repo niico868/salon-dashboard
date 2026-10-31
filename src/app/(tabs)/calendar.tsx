@@ -1,17 +1,26 @@
-import { addDays, endOfMonth, format, startOfMonth } from 'date-fns';
+import { Ionicons } from '@expo/vector-icons';
+import { addDays, endOfMonth, format, isToday, startOfMonth } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '../../components/AppText';
-import { C, F } from '../../lib/theme';
 import { Calendar } from 'react-native-calendars';
+import { Text } from '../../components/AppText';
+import BookingChip from '../../components/BookingChip';
 import DayView from '../../components/DayView';
+import EmptyState from '../../components/EmptyState';
+import ListRow from '../../components/ListRow';
 import LoadError from '../../components/LoadError';
+import PressableScale from '../../components/PressableScale';
+import Segmented from '../../components/Segmented';
+import TimeBadge from '../../components/TimeBadge';
+import { Heading } from '../../components/Typography';
+import { haptic } from '../../lib/motion';
 import { TTD } from '../../lib/money';
 import { supabase } from '../../lib/supabase';
+import { colors, fonts, radius, shadow, space } from '../../lib/theme';
 import type { AppointmentBalance } from '../../lib/types';
 
-const COLOR = { booked: '#9D3438', completed: '#2E7D32', cancelled: '#9E9E9E', no_show: '#9E9E9E' } as const;
+const COLOR = { booked: colors.primary, completed: colors.success, cancelled: colors.neutral, no_show: colors.neutral } as const;
 const dayKey = (iso: string) => format(new Date(iso), 'yyyy-MM-dd');
 
 export default function CalendarTab() {
@@ -38,86 +47,128 @@ export default function CalendarTab() {
     for (const a of appts) {
       const k = dayKey(a.starts_at);
       m[k] ??= { dots: [] };
-      if (m[k].dots.length < 3) m[k].dots.push({ key: a.id, color: COLOR[a.status] });
+      if (m[k].dots.length < 3) m[k].dots.push({ key: a.id, color: COLOR[a.status], selectedDotColor: colors.textOnPrimary });
     }
-    m[selected] = { ...(m[selected] ?? { dots: [] }), selected: true, selectedColor: '#E3B8B7' };
+    m[selected] = { ...(m[selected] ?? { dots: [] }), selected: true, selectedColor: colors.primary };
     return m;
   }, [appts, selected]);
 
-  const today = appts.filter((a) => dayKey(a.starts_at) === selected);
+  const dayList = appts.filter((a) => dayKey(a.starts_at) === selected);
   const selectedDate = new Date(selected + 'T12:00');
 
-  // Day view arrows: moving into another month loads that month's bookings
+  // Moving into another month loads that month's bookings
   function goToDay(d: Date) {
+    haptic.tap();
     setSelected(format(d, 'yyyy-MM-dd'));
     if (format(d, 'yyyy-MM') !== format(month, 'yyyy-MM')) setMonth(startOfMonth(d));
   }
 
+  const todayLink = !isToday(selectedDate) && (
+    <Pressable onPress={() => goToDay(new Date())} hitSlop={10} style={s.todayBtn} accessibilityRole="button">
+      <Text style={s.todayText}>Today</Text>
+    </Pressable>
+  );
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#FFFCF9' }}>
-      <View style={s.seg}>
-        {(['month', 'day'] as const).map((m) => (
-          <Pressable key={m} style={[s.segBtn, mode === m && s.segOn]} onPress={() => setMode(m)}>
-            <Text style={mode === m ? { color: 'white', fontWeight: '600' } : undefined}>{m === 'month' ? 'Month' : 'Day'}</Text>
-          </Pressable>
-        ))}
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={s.top}>
+        <Segmented value={mode} onChange={setMode}
+          options={[{ value: 'month', label: 'Month' }, { value: 'day', label: 'Day by hour' }]} />
       </View>
 
       {mode === 'day' ? (
         <View style={{ flex: 1 }}>
           <View style={s.nav}>
-            <Pressable onPress={() => goToDay(addDays(selectedDate, -1))}><Text style={s.arrow}>‹</Text></Pressable>
-            <Pressable onPress={() => goToDay(new Date())}>
-              <Text style={s.h}>{format(selectedDate, 'EEEE d MMMM')}</Text>
+            <Pressable onPress={() => goToDay(addDays(selectedDate, -1))} style={s.arrow}
+              accessibilityRole="button" accessibilityLabel="Previous day">
+              <Ionicons name="chevron-back" size={26} color={colors.primary} />
             </Pressable>
-            <Pressable onPress={() => goToDay(addDays(selectedDate, 1))}><Text style={s.arrow}>›</Text></Pressable>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Heading>{format(selectedDate, 'EEEE d MMMM')}</Heading>
+              {todayLink}
+            </View>
+            <Pressable onPress={() => goToDay(addDays(selectedDate, 1))} style={s.arrow}
+              accessibilityRole="button" accessibilityLabel="Next day">
+              <Ionicons name="chevron-forward" size={26} color={colors.primary} />
+            </Pressable>
           </View>
-          {loadError && <View style={{ paddingHorizontal: 16 }}><LoadError onRetry={load} /></View>}
-          <DayView date={selectedDate} appts={today}
+          {loadError && <View style={{ paddingHorizontal: space.lg }}><LoadError onRetry={load} /></View>}
+          <DayView date={selectedDate} appts={dayList}
             onPressAppt={(id) => router.push(`/appointment/${id}`)}
             onPressSlot={(d) => router.push(`/appointment/new?date=${selected}&time=${format(d, 'HH:mm')}`)} />
         </View>
       ) : (
-        <>
-        <Calendar current={format(month, 'yyyy-MM-dd')} markingType="multi-dot" markedDates={marked}
-          onDayPress={(d) => setSelected(d.dateString)}
-          onMonthChange={(d) => setMonth(new Date(d.year, d.month - 1, 1))}
-          theme={{ todayTextColor: '#9D3438', arrowColor: '#9D3438' }} />
-        <FlatList data={today} keyExtractor={(a) => a.id} contentContainerStyle={{ padding: 16, gap: 8 }}
+        <FlatList data={dayList} keyExtractor={(a) => a.id}
+          contentContainerStyle={s.list}
           ListHeaderComponent={
-            <View style={{ gap: 8 }}>
+            <View style={{ gap: space.md }}>
+              <View style={s.calCard}>
+                <Calendar key={format(month, 'yyyy-MM')} current={format(month, 'yyyy-MM-dd')} markingType="multi-dot" markedDates={marked}
+                  onDayPress={(d) => { haptic.tap(); setSelected(d.dateString); }}
+                  onMonthChange={(d) => setMonth(new Date(d.year, d.month - 1, 1))}
+                  enableSwipeMonths={false}
+                  theme={{
+                    calendarBackground: colors.surface,
+                    todayTextColor: colors.primary, arrowColor: colors.primary,
+                    selectedDayBackgroundColor: colors.primary, selectedDayTextColor: colors.textOnPrimary,
+                    dayTextColor: colors.text, textDisabledColor: '#C9BDBB', monthTextColor: colors.text,
+                    textSectionTitleColor: colors.textMuted,
+                    textDayFontFamily: fonts.body, textMonthFontFamily: fonts.heading, textDayHeaderFontFamily: fonts.bodyBold,
+                    textDayFontSize: 17, textMonthFontSize: 20, textDayHeaderFontSize: 13,
+                  }} />
+              </View>
+              <View style={s.legend}>
+                <Legend color={colors.primary} label="Booked" />
+                <Legend color={colors.success} label="Done" />
+                <Legend color={colors.neutral} label="Cancelled / no-show" />
+              </View>
               {loadError && <LoadError onRetry={load} />}
-              <Text style={s.h}>{format(new Date(selected + 'T12:00'), 'EEEE d MMMM')}</Text>
+              <View style={s.dayHead}>
+                <Heading style={{ flex: 1 }}>{isToday(selectedDate) ? 'Today' : format(selectedDate, 'EEEE d MMMM')}</Heading>
+                {todayLink}
+              </View>
             </View>
           }
-          ListEmptyComponent={loadError ? null : <Text style={{ color: '#777' }}>No bookings.</Text>}
+          ListEmptyComponent={loadError ? null : (
+            <EmptyState icon="calendar-clear-outline" title="Nothing booked" message="This day is free."
+              actionLabel="Book this day" onAction={() => router.push(`/appointment/new?date=${selected}`)} />
+          )}
           renderItem={({ item: a }) => (
-            <Pressable style={[s.row, { borderLeftColor: COLOR[a.status] }]} onPress={() => router.push(`/appointment/${a.id}`)}>
-              <Text style={s.time}>{format(new Date(a.starts_at), 'h:mm a')}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: '600' }}>{a.client_name}</Text>
-                <Text style={{ color: '#777' }}>{a.service_name} · {TTD(Number(a.price))}</Text>
-              </View>
-            </Pressable>
+            <ListRow title={a.client_name} subtitle={`${a.service_name} · ${TTD(Number(a.price))}`}
+              left={<TimeBadge date={new Date(a.starts_at)} />}
+              right={<BookingChip a={a} />}
+              accent={COLOR[a.status]}
+              onPress={() => router.push(`/appointment/${a.id}`)} />
           )} />
-        </>
       )}
-      <Pressable style={s.fab} onPress={() => router.push(`/appointment/new?date=${selected}`)}>
-        <Text style={{ color: 'white', fontSize: 28 }}>+</Text>
-      </Pressable>
+
+      <PressableScale style={s.fab} onPress={() => { haptic.tap(); router.push(`/appointment/new?date=${selected}`); }}
+        accessibilityRole="button" accessibilityLabel="New booking">
+        <Ionicons name="add" size={26} color={colors.textOnPrimary} />
+        <Text style={s.fabText}>Book</Text>
+      </PressableScale>
     </View>
   );
 }
 
+const Legend = ({ color, label }: { color: string; label: string }) => (
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} />
+    <Text style={{ fontSize: 14, color: colors.textMuted }}>{label}</Text>
+  </View>
+);
+
 const s = StyleSheet.create({
-  seg: { flexDirection: 'row', backgroundColor: 'white', borderRadius: 10, padding: 4, margin: 12, marginBottom: 4 },
-  segBtn: { flex: 1, padding: 8, alignItems: 'center', borderRadius: 8 },
-  segOn: { backgroundColor: '#9D3438' },
-  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
-  arrow: { fontSize: 32, color: '#9D3438', paddingHorizontal: 12 },
-  h: { fontFamily: F.title, color: C.ink, fontSize: 16, marginBottom: 4 },
-  row: { flexDirection: 'row', gap: 12, backgroundColor: 'white', padding: 12, borderRadius: 12, borderLeftWidth: 4 },
-  time: { width: 70, fontWeight: '600' },
-  fab: { position: 'absolute', right: 20, bottom: 20, width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#9D3438', alignItems: 'center', justifyContent: 'center', elevation: 4 },
+  top: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.sm, width: '100%', maxWidth: 640, alignSelf: 'center' },
+  list: { padding: space.lg, paddingBottom: 110, gap: space.md, width: '100%', maxWidth: 640, alignSelf: 'center' },
+  calCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.sm, overflow: 'hidden', ...shadow.card },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: space.lg, justifyContent: 'center' },
+  dayHead: { flexDirection: 'row', alignItems: 'center', marginTop: space.sm },
+  nav: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.sm, paddingVertical: space.xs },
+  arrow: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.blush },
+  todayBtn: { paddingHorizontal: 14, paddingVertical: 4, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.primary, marginTop: 4 },
+  todayText: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: 14 },
+  fab: { position: 'absolute', right: space.xl, bottom: space.xl, height: 58, borderRadius: 29, paddingHorizontal: 22,
+    backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', gap: 6, ...shadow.raised },
+  fabText: { color: colors.textOnPrimary, fontFamily: fonts.bodyBold, fontSize: 18 },
 });

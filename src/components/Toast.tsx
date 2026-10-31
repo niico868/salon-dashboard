@@ -59,6 +59,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 const s = StyleSheet.create({
   layer: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingHorizontal: space.lg, zIndex: 1000 },
   toast: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.primary,
-    borderRadius: radius.pill, paddingVertical: 10, paddingHorizontal: 20, maxWidth: 420, ...shadow.card },
-  text: { fontFamily: fonts.script, fontSize: 24, color: colors.textOnPrimary, flexShrink: 1 },
+    borderRadius: radius.pill, paddingVertical: 14, paddingHorizontal: 22, maxWidth: 420, ...shadow.card },
+  text: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.textOnPrimary, flexShrink: 1 },
 });
