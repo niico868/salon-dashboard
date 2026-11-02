@@ -13,7 +13,14 @@ export default function PasscodePrompt({ visible, onSuccess, onCancel }: Props) 
   const fails = useRef(0);
   const lockedUntil = useRef(0);
 
-  useEffect(() => { if (visible) { setCode(''); hasPasscode().then((h) => setCreating(!h)); } }, [visible]);
+  // Start with an empty box each time the prompt opens
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) setCode('');
+  }
+
+  useEffect(() => { if (visible) hasPasscode().then((h) => setCreating(!h)); }, [visible]);
 
   async function submit() {
     if (Date.now() < lockedUntil.current) return Alert.alert('Locked', 'Too many tries. Wait a minute.');

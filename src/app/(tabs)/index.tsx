@@ -230,7 +230,7 @@ export default function Dashboard() {
               <View style={s.line}>
                 <View style={s.cake}><Text style={{ fontSize: 22 }}>🎂</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.name}>{c.full_name}'s birthday</Text>
+                  <Text style={s.name}>{c.full_name}&apos;s birthday</Text>
                   <Small style={isToday(date) ? { color: colors.primary, fontFamily: fonts.bodyBold } : undefined}>
                     {isToday(date) ? 'Today!' : format(date, 'EEEE d MMMM')}{turning ? ` · turning ${turning}` : ''}
                   </Small>

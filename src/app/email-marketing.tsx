@@ -87,17 +87,17 @@ export default function EmailMarketing() {
   const [open, setOpen] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const load = useCallback(async () => {
-    const { data, error } = await supabase.from('email_settings').select('*').maybeSingle();
+  const load = useCallback(() => supabase.from('email_settings').select('*').maybeSingle().then(({ data, error }) => {
     if (error) {
       // The table isn't there until supabase/sql/email-settings.sql has been run
       if (error.code === 'PGRST205' || error.code === '42P01') { setNeedsSetup(true); setLoadError(false); return; }
-      return setLoadError(true);
+      setLoadError(true);
+      return;
     }
     setLoadError(false); setNeedsSetup(false);
     const next = toForm({ ...DEFAULT_SETTINGS, ...(data ?? {}) });
     setForm(next); setSavedAs(JSON.stringify(next));
-  }, []);
+  }), []);
   useEffect(() => { load(); }, [load]);
 
   const dirty = !!form && JSON.stringify(form) !== savedAs;
@@ -196,7 +196,7 @@ export default function EmailMarketing() {
               <Small>The app fills these in for each client, so keep the curly brackets:</Small>
               {PLACEHOLDERS[kind].map((p) => <Small key={p}>{`{${p}}  →  ${FILL_IN_HELP[p]}`}</Small>)}
             </View>
-            {kind === 'aftercare' && <Small>The treatment's aftercare points and the general care section are added below your message.</Small>}
+            {kind === 'aftercare' && <Small>Aftercare points for the treatment and the general care section are added below your message.</Small>}
             <View style={s.preview}>
               <Text style={s.previewTag}>How it will read</Text>
               <Text style={s.previewSubject}>{fillIn(w.subject, values)}</Text>
@@ -212,7 +212,7 @@ export default function EmailMarketing() {
   };
 
   return (
-    <Screen onRefresh={dirty ? undefined : load} footer={
+    <Screen onRefresh={dirty ? undefined : async () => { await load(); }} footer={
       <Button title="Save changes" icon="checkmark-circle" size="lg" loading={saving} disabled={!dirty} onPress={save} />
     }>
       <Card tone={form.paused ? 'soft' : 'plain'}>

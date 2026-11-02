@@ -37,6 +37,7 @@ export default function ClientProfile() {
   const [visits, setVisits] = useState<AppointmentBalance[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [messages, setMessages] = useState<ClientMessage[]>([]);
+  const [now, setNow] = useState(0); // when the visits were loaded, to split upcoming from past
 
   const load = useCallback(async () => {
     const [cr, vr] = await Promise.all([
@@ -47,6 +48,7 @@ export default function ClientProfile() {
     setLoadError(false);
     setC(cr.data as Client);
     setVisits((vr.data as AppointmentBalance[]) ?? []);
+    setNow(Date.now());
     // Automatic emails sent to this client. Quietly empty until supabase/sql/client-messages.sql has been run.
     const mr = await supabase.from('client_messages').select('id, kind, channel, status, error, created_at')
       .eq('client_id', id).order('created_at', { ascending: false }).limit(10);
@@ -59,7 +61,6 @@ export default function ClientProfile() {
   const done = visits.filter((v) => v.status === 'completed');
   const spent = visits.reduce((t, v) => t + Number(v.paid), 0);
   const owed = visits.filter((v) => v.status !== 'cancelled').reduce((t, v) => t + Math.max(0, Number(v.balance)), 0);
-  const now = Date.now();
   const upcoming = visits.filter((v) => v.status === 'booked' && new Date(v.starts_at).getTime() >= now).reverse();
   const past = visits.filter((v) => !upcoming.includes(v));
 
