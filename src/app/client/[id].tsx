@@ -136,9 +136,9 @@ export default function ClientProfile() {
           <Pressable style={{ flex: 1, gap: 4 }} onPress={() => router.push(`/appointment/${v.id}`)} accessibilityRole="button">
             <Text style={s.visitTitle}>{v.service_name} · {TTD(Number(v.price))}</Text>
             <Small>{format(new Date(v.starts_at), 'EEE d MMM yyyy, h:mm a')}</Small>
-            {v.status === 'completed' && Number(v.balance) <= 0 ? <StatusChip status="completed" /> : <BookingChip a={v} />}
+            {v.status === 'completed' && Number(v.balance) <= 0 && Number(v.price) > 0 ? <StatusChip status="completed" /> : <BookingChip a={v} />}
           </Pressable>
-          {v.status !== 'cancelled' && (
+          {v.status !== 'cancelled' && Number(v.price) > 0 && (
             <Pressable onPress={() => shareAppointmentInvoice(v.id)} hitSlop={8} style={s.pdf}
               accessibilityRole="button" accessibilityLabel="Invoice">
               <Ionicons name="document-text-outline" size={20} color={colors.primary} />

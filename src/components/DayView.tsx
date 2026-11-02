@@ -6,7 +6,7 @@ import type { AppointmentBalance } from '../lib/types';
 
 const OPEN_HOUR = salonHours.open, CLOSE_HOUR = salonHours.close;  // free time is only counted inside these
 const VIEW_FROM = 8, VIEW_TO = 19;      // the grid always shows at least these hours
-const OPEN_DAYS = [2, 3, 4, 5, 6];      // Tuesday to Saturday (0 = Sunday)
+const OPEN_DAYS = salonHours.days;
 const HOUR_H = 72;                      // height of one hour in the grid
 const MIN_GAP = 30;                     // shorter free gaps are left unlabeled
 const COLOR = { booked: colors.primary, completed: colors.success } as const;

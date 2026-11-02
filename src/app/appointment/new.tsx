@@ -13,6 +13,8 @@ import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import { useToast } from '../../components/Toast';
 import { Body, Small } from '../../components/Typography';
+import { confirmBookingTime } from '../../lib/bookingChecks';
+import { nextOpenSlot, outsideHoursMessage } from '../../lib/hours';
 import { haptic } from '../../lib/motion';
 import { TTD } from '../../lib/money';
 import { scheduleAppointmentReminder } from '../../lib/notifications';
@@ -47,6 +49,8 @@ export default function BookAppointment() {
   const [service, setService] = useState<Service | null>(null);
   const [start, setStart] = useState(() => {
     // `time` ("14:30") comes from tapping an empty slot in the calendar's day view
+    // With nothing chosen yet, start at the next time the spa is open
+    if (!date && !time) return nextOpenSlot(new Date());
     const [h, m] = /^\d{1,2}:\d{2}$/.test(time ?? '') ? time!.split(':').map(Number) : [10, 0];
     return setMinutes(setHours(date ? new Date(date + 'T00:00') : new Date(), h), m);
   });
@@ -77,27 +81,16 @@ export default function BookAppointment() {
     setSaving(true);
     try {
       const end = addMinutes(start, service.duration_min);
-      // Overlap check: any booked appointment that starts before this ends and ends after this starts
-      const { data: clash, error: clashError } = await supabase.from('appointments').select('id, service_name, starts_at')
-        .eq('status', 'booked').lt('starts_at', end.toISOString()).gt('ends_at', start.toISOString());
-      if (clashError) return Alert.alert("Couldn't check for overlaps", clashError.message);
-      const go = async () => {
-        const { data, error } = await supabase.from('appointments').insert({
-          client_id: client.id, service_id: service.id, service_name: service.name,
-          price: price ? Number(price) : service.price,
-          starts_at: start.toISOString(), ends_at: end.toISOString(), notes: notes || null,
-        }).select().single();
-        if (error) return Alert.alert('Save failed', error.message);
-        await scheduleAppointmentReminder(data.id, client.full_name, service.name, start);
-        toast.show('Appointment booked');
-        router.back();
-      };
-      if (clash && clash.length) {
-        haptic.warning();
-        Alert.alert('This time overlaps another booking',
-          `Already booked: ${clash[0].service_name} at ${format(new Date(clash[0].starts_at), 'h:mm a')}. Book anyway?`,
-          [{ text: 'Go back', style: 'cancel' }, { text: 'Book anyway', onPress: go }]);
-      } else await go();
+      if (!await confirmBookingTime(start, end, 'Book anyway')) return;
+      const { data, error } = await supabase.from('appointments').insert({
+        client_id: client.id, service_id: service.id, service_name: service.name,
+        price: price ? Number(price) : service.price,
+        starts_at: start.toISOString(), ends_at: end.toISOString(), notes: notes || null,
+      }).select().single();
+      if (error) return Alert.alert('Save failed', error.message);
+      await scheduleAppointmentReminder(data.id, client.full_name, service.name, start);
+      toast.show('Appointment booked');
+      router.back();
     } finally {
       setSaving(false);
     }
@@ -107,6 +100,7 @@ export default function BookAppointment() {
     ? clients.filter((c) => c.full_name.toLowerCase().includes(clientQ.trim().toLowerCase())
       || (c.phone ?? '').replace(/\D/g, '').includes(clientQ.replace(/\D/g, '') || '§')).slice(0, 6)
     : [];
+  const closedWarning = outsideHoursMessage(start, addMinutes(start, service?.duration_min ?? 0));
   const groups = services.reduce<Record<string, Service[]>>((acc, sv) => { (acc[sv.category] ??= []).push(sv); return acc; }, {});
 
   const summary = client && service
@@ -172,7 +166,7 @@ export default function BookAppointment() {
                     <Text style={s.serviceName}>{sv.name}</Text>
                     <Small>{length(sv.duration_min)}</Small>
                   </View>
-                  <Text style={s.servicePrice}>{TTD(Number(sv.price))}</Text>
+                  <Text style={s.servicePrice}>{Number(sv.price) > 0 ? TTD(Number(sv.price)) : 'Price needed'}</Text>
                 </Pressable>
               );
             })}
@@ -183,12 +177,15 @@ export default function BookAppointment() {
       <Step n={3} title="When?">
         <DateTimeField value={start} onChange={setStart} />
         {service && <Small>Ends at {format(addMinutes(start, service.duration_min), 'h:mm a')}</Small>}
+        {!!closedWarning && <Small style={s.warning}>{closedWarning}</Small>}
       </Step>
 
       <Step n={4} title="Anything else? (optional)">
         <Field label="Price" keyboardType="decimal-pad" value={price} onChangeText={setPrice}
-          placeholder={service ? `${Number(service.price)}` : 'e.g. 350'}
-          hint={service ? `Leave empty to charge the usual ${TTD(Number(service.price))}` : 'Leave empty to use the menu price'} />
+          placeholder={service && Number(service.price) > 0 ? `${Number(service.price)}` : 'e.g. 350'}
+          hint={!service ? 'Leave empty to use the menu price'
+            : Number(service.price) > 0 ? `Leave empty to charge the usual ${TTD(Number(service.price))}`
+            : 'This service has no menu price. Enter one here, or add it later.'} />
         <Field label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="e.g. Wants a lighter shade this time" />
       </Step>
       <Body style={{ color: colors.textMuted, textAlign: 'center' }}>Check the details, then tap Book appointment below.</Body>
@@ -208,6 +205,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.background, minHeight: touch.min + 8 },
   picked: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.md, backgroundColor: colors.blush },
   pickedName: { fontFamily: fonts.bodyBold, fontSize: 18 },
+  warning: { color: colors.warning, fontFamily: fonts.bodyBold },
   link: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: 16 },
   cat: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: space.xs },
   service: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.md,

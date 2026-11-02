@@ -97,4 +97,4 @@ export const motion = { fast: 150, normal: 260, stagger: 60, countUp: 700 };
 export const brand = { name: 'Melt Aways', ownerName: 'Krystal' };
 
 // Salon opening hours (24-hour clock). The day view counts free time inside these.
-export const hours = { open: 10, close: 16 };
+export const hours = { open: 10, close: 16, days: [2, 3, 4, 5, 6] };  // days: Tuesday to Saturday (0 = Sunday)

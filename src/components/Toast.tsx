@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius, shadow, space } from '../lib/theme';
@@ -11,8 +11,10 @@ import { haptic, useReducedMotion } from '../lib/motion';
 //   const toast = useToast();
 //   toast.show('Payment saved');
 //   toast.show('Follow-up cleared', { icon: 'checkmark-done' });
+//   toast.show('Marked as done', { duration: 5000, action: { label: 'Undo', onPress: undo } });
 
-type Options = { icon?: keyof typeof Ionicons.glyphMap; duration?: number };
+type ToastAction = { label: string; onPress: () => void };
+type Options = { icon?: keyof typeof Ionicons.glyphMap; duration?: number; action?: ToastAction };
 const ToastContext = createContext<{ show: (message: string, opts?: Options) => void }>({ show: () => {} });
 export const useToast = () => useContext(ToastContext);
 
@@ -21,11 +23,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const reduced = useReducedMotion();
   const [anim] = useState(() => new Animated.Value(0));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [toast, setToast] = useState<{ message: string; icon: keyof typeof Ionicons.glyphMap } | null>(null);
+  const [toast, setToast] = useState<{ message: string; icon: keyof typeof Ionicons.glyphMap; action?: ToastAction } | null>(null);
 
   const show = useCallback((message: string, opts: Options = {}) => {
     if (timer.current) clearTimeout(timer.current);
-    setToast({ message, icon: opts.icon ?? 'checkmark-circle' });
+    setToast({ message, icon: opts.icon ?? 'checkmark-circle', action: opts.action });
     haptic.success();
     anim.setValue(reduced ? 1 : 0);
     if (!reduced) Animated.spring(anim, { toValue: 1, useNativeDriver: Platform.OS !== 'web', speed: 18, bounciness: 6 }).start();
@@ -39,8 +41,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ show }}>
       {children}
       {toast && (
-        <View pointerEvents="none" style={[s.layer, { top: insets.top + space.sm }]}>
+        <View pointerEvents="box-none" style={[s.layer, { top: insets.top + space.sm }]}>
           <Animated.View
+            pointerEvents={toast.action ? 'auto' : 'none'}
             accessibilityLiveRegion="polite"
             accessibilityRole="alert"
             style={[s.toast, {
@@ -49,6 +52,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             }]}>
             <Ionicons name={toast.icon} size={22} color={colors.textOnPrimary} />
             <Text style={s.text} numberOfLines={2}>{toast.message}</Text>
+            {toast.action && (
+              <Pressable style={s.action} hitSlop={10} accessibilityRole="button" accessibilityLabel={toast.action.label}
+                onPress={() => {
+                  if (timer.current) clearTimeout(timer.current);
+                  const { onPress } = toast.action!;
+                  setToast(null);
+                  onPress();
+                }}>
+                <Text style={s.actionText}>{toast.action.label}</Text>
+              </Pressable>
+            )}
           </Animated.View>
         </View>
       )}
@@ -61,4 +75,6 @@ const s = StyleSheet.create({
   toast: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.primary,
     borderRadius: radius.pill, paddingVertical: 14, paddingHorizontal: 22, maxWidth: 420, ...shadow.card },
   text: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.textOnPrimary, flexShrink: 1 },
+  action: { minHeight: 32, justifyContent: 'center', borderLeftWidth: 1, borderLeftColor: colors.rose, paddingLeft: space.md, marginLeft: space.xs },
+  actionText: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.textOnPrimary, textDecorationLine: 'underline' },
 });

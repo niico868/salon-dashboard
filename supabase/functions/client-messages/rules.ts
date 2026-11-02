@@ -24,6 +24,8 @@ export const SEND_UNTIL_HOUR = 20; // …or from 8 PM on. Anything due waits for
 
 const HOUR = 3600_000;
 const DAY = 24 * HOUR;
+// Aftercare waits this long after Done, so the 5-second Undo in the app always beats the email.
+export const AFTERCARE_HOLD_MS = 60_000;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Salon-time calendar parts for an instant
@@ -95,7 +97,7 @@ export function dueMessages(now: Date, clients: ClientRow[], appointments: Appoi
       const since = t - Date.parse(a.completed_at);
       if (since < 0) continue;
       // Straight after the visit (up to 2 days, so a visit finished after 8 PM still gets it next morning)
-      if (since <= 2 * DAY) add('aftercare', `aftercare:${a.id}`, c, a);
+      if (since >= AFTERCARE_HOLD_MS && since <= 2 * DAY) add('aftercare', `aftercare:${a.id}`, c, a);
       if (since >= 7 * DAY && since <= 9 * DAY) add('checkin_1w', `checkin_1w:${a.id}`, c, a);
 
       // Rebooking nudges: only about their latest visit, and not if they've already booked again

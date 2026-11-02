@@ -123,10 +123,13 @@ export default function Dashboard() {
 
   const stillToCollect = today?.potential ?? 0;
   const activeToday = todayList.filter((a) => a.status !== 'no_show');
+  const needPrice = activeToday.filter((a) => Number(a.price) <= 0).length;
   const summary = !loaded ? undefined
     : activeToday.length === 0 ? 'No bookings today.'
     : `${activeToday.length} booking${activeToday.length === 1 ? '' : 's'} today` +
-      (stillToCollect > 0 ? ` · ${TTD(stillToCollect)} still to collect` : ' · all paid');
+      (stillToCollect > 0 ? ` · ${TTD(stillToCollect)} still to collect` : '') +
+      (needPrice > 0 ? ` · ${needPrice} need${needPrice === 1 ? 's' : ''} a price` : '') +
+      (stillToCollect <= 0 && needPrice === 0 ? ' · all paid' : '');
   const attention = (enquiries?.length ?? 0) + followUps.length + birthdays.length;
 
   return (

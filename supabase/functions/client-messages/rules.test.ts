@@ -45,6 +45,11 @@ test('no email, or unsubscribed: nothing', () => {
   assert.deepEqual(kinds([client({ emails_off: true })], [appt()]), []);
 });
 
+test('aftercare waits out the Undo window after Done', () => {
+  assert.deepEqual(kinds([client()], [appt({ status: 'completed', completed_at: at(-5000) })]), []);
+  assert.deepEqual(kinds([client()], [appt({ status: 'completed', completed_at: at(-61_000) })]), ['aftercare']);
+});
+
 test('aftercare right after Done, then the 1-week check-in', () => {
   assert.deepEqual(kinds([client()], [appt({ status: 'completed', completed_at: at(-1 * H) })]), ['aftercare']);
   assert.deepEqual(kinds([client()], [appt({ status: 'completed', completed_at: at(-8 * D) })]), ['checkin_1w']);

@@ -3,7 +3,7 @@ import { colors, fonts, radius } from '../lib/theme';
 
 // Small coloured pills with fixed meanings, used on lists, the calendar and appointment screens.
 // <StatusChip status="booked" />   <StatusChip status="owes" label="Owes TT$200.00" />
-export type ChipStatus = 'booked' | 'completed' | 'cancelled' | 'no_show' | 'paid' | 'owes' | 'pending' | 'overdue' | 'due' | 'website';
+export type ChipStatus = 'booked' | 'completed' | 'cancelled' | 'no_show' | 'paid' | 'owes' | 'pending' | 'overdue' | 'due' | 'website' | 'price_needed';
 
 const LOOK: Record<ChipStatus, { label: string; fg: string; bg: string }> = {
   booked:    { label: 'Booked',    fg: colors.primary, bg: colors.blush },
@@ -15,6 +15,7 @@ const LOOK: Record<ChipStatus, { label: string; fg: string; bg: string }> = {
   overdue:   { label: 'Overdue',   fg: colors.danger,  bg: colors.dangerBg },
   no_show:   { label: 'No-show',   fg: colors.danger,  bg: colors.dangerBg },
   cancelled: { label: 'Cancelled', fg: colors.neutral, bg: colors.neutralBg },
+  price_needed: { label: 'Price needed', fg: colors.warning, bg: colors.warningBg },
   website:   { label: 'Website',   fg: colors.primaryBright, bg: colors.blush },
 };
 

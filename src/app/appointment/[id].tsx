@@ -1,20 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { addMinutes, differenceInMinutes, format } from 'date-fns';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Share, StyleSheet, View } from 'react-native';
 import ActionPill from '../../components/ActionPill';
 import { Text } from '../../components/AppText';
 import Avatar from '../../components/Avatar';
+import BookingEditor from '../../components/BookingEditor';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
 import DateTimeField from '../../components/DateTimeField';
 import LoadError from '../../components/LoadError';
+import OverflowMenu, { type MenuItem } from '../../components/OverflowMenu';
 import Screen from '../../components/Screen';
 import { SkeletonList } from '../../components/Skeleton';
 import StatusChip from '../../components/StatusChip';
 import { useToast } from '../../components/Toast';
 import { Body, Heading, Small } from '../../components/Typography';
+import { confirmBookingTime } from '../../lib/bookingChecks';
+import { outsideHoursMessage } from '../../lib/hours';
 import { shareAppointmentInvoice } from '../../lib/invoice';
 import { haptic } from '../../lib/motion';
 import { TTD } from '../../lib/money';
@@ -34,7 +38,9 @@ export default function AppointmentDetail() {
   const [a, setA] = useState<AppointmentBalance | null>(null);
   const [pays, setPays] = useState<Payment[]>([]);
   const [loadError, setLoadError] = useState(false);
-  const [moving, setMoving] = useState(false);
+  const [newStart, setNewStart] = useState<Date | null>(null);  // the time being chosen; nothing saves until Save new time
+  const [savingTime, setSavingTime] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     const [ar, pr] = await Promise.all([
@@ -54,8 +60,13 @@ export default function AppointmentDetail() {
   async function setStatus(status: AppointmentStatus) {
     const { error } = await supabase.from('appointments').update({ status }).eq('id', id);
     if (error) return Alert.alert('Update failed', error.message);
-    if (status !== 'booked') await cancelAppointmentReminder(id);
-    toast.show(DONE_MESSAGE[status]);
+    if (status === 'booked') await scheduleAppointmentReminder(id, a!.client_name, a!.service_name, new Date(a!.starts_at));
+    else await cancelAppointmentReminder(id);
+    // Done and no-show are one tap, so they can be undone straight away. The aftercare email waits
+    // past this window (see AFTERCARE_HOLD_MS in the client-messages function).
+    if (status === 'completed' || status === 'no_show') {
+      toast.show(DONE_MESSAGE[status], { duration: 5000, action: { label: 'Undo', onPress: () => setStatus('booked') } });
+    } else toast.show(DONE_MESSAGE[status]);
     load();
   }
   async function reschedule(newStart: Date) {
@@ -68,6 +79,18 @@ export default function AppointmentDetail() {
     toast.show('Rescheduled');
     load();
   }
+  async function saveNewTime() {
+    if (!newStart) return;
+    setSavingTime(true);
+    try {
+      const len = differenceInMinutes(new Date(a!.ends_at), new Date(a!.starts_at));
+      if (!await confirmBookingTime(newStart, addMinutes(newStart, len), 'Move anyway', id)) return;
+      await reschedule(newStart);
+      setNewStart(null);
+    } finally {
+      setSavingTime(false);
+    }
+  }
   async function markPaid(paymentId: string) {
     const { error } = await supabase.from('payments').update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', paymentId);
     if (error) return Alert.alert('Update failed', error.message);
@@ -78,12 +101,19 @@ export default function AppointmentDetail() {
   const start = new Date(a.starts_at), end = new Date(a.ends_at);
   const balance = Math.max(0, Number(a.balance));
   const open = a.status === 'booked';
+  const noPrice = Number(a.price) <= 0 && a.status !== 'cancelled';
+  const menu: MenuItem[] = [
+    ...(a.status !== 'cancelled' ? [{ label: 'Edit booking', icon: 'create-outline' as const, onPress: () => setEditing(true) }] : []),
+    ...(open ? [{ label: 'Change time', icon: 'swap-horizontal' as const, onPress: () => setNewStart(start) }] : []),
+  ];
   const chip = a.status === 'booked' ? <StatusChip status="booked" />
     : a.status === 'completed' ? <StatusChip status="completed" />
     : <StatusChip status={a.status} />;
 
   return (
     <Screen>
+      <Stack.Screen options={{ headerRight: menu.length > 0 ? () => <OverflowMenu items={menu} /> : undefined }} />
+      <BookingEditor booking={a} visible={editing} onClose={() => setEditing(false)} onSaved={load} />
       <Card>
         <View style={s.head}>
           <Avatar name={a.client_name} size={52} />
@@ -109,25 +139,30 @@ export default function AppointmentDetail() {
         )}
         <View style={s.actions}>
           <ActionPill label="View client" icon="person" onPress={() => router.push(`/client/${a.client_id}`)} />
-          {open && <ActionPill label={moving ? 'Close' : 'Change time'} icon="swap-horizontal"
-            onPress={() => setMoving(!moving)} />}
+          {open && <ActionPill label={newStart ? 'Keep current time' : 'Change time'} icon="swap-horizontal"
+            onPress={() => setNewStart(newStart ? null : start)} />}
         </View>
-        {open && moving && (
-          <View style={{ gap: space.xs }}>
-            <Small>Pick the new date and time. It saves as soon as you change it.</Small>
-            <DateTimeField value={start} onChange={reschedule} />
+        {open && newStart && (
+          <View style={{ gap: space.sm }}>
+            <Small>Pick the new date and time, then tap Save new time.</Small>
+            <DateTimeField value={newStart} onChange={setNewStart} />
+            {!!outsideHoursMessage(newStart, addMinutes(newStart, differenceInMinutes(end, start))) && (
+              <Small style={s.warning}>{outsideHoursMessage(newStart, addMinutes(newStart, differenceInMinutes(end, start)))}</Small>
+            )}
+            <Button title="Save new time" icon="checkmark-circle" loading={savingTime}
+              disabled={newStart.getTime() === start.getTime()} onPress={saveNewTime} />
           </View>
         )}
       </Card>
 
       <Card>
         <Heading>Payment</Heading>
-        <View style={s.moneyRow}><Body>Price</Body><Body style={s.bold}>{TTD(Number(a.price))}</Body></View>
+        <View style={s.moneyRow}><Body>Price</Body><Body style={s.bold}>{noPrice ? 'Not set' : TTD(Number(a.price))}</Body></View>
         <View style={s.moneyRow}><Body>Paid so far</Body><Body style={[s.bold, { color: colors.success }]}>{TTD(Number(a.paid))}</Body></View>
         <View style={[s.moneyRow, s.balanceRow]}>
           <Text style={s.balanceLabel}>Still owes</Text>
-          <Text style={[s.balance, { color: balance > 0 ? colors.primary : colors.success }]}>
-            {balance > 0 ? TTD(balance) : 'Nothing'}
+          <Text style={[s.balance, { color: noPrice ? colors.warning : balance > 0 ? colors.primary : colors.success }]}>
+            {noPrice ? 'Price needed' : balance > 0 ? TTD(balance) : 'Nothing'}
           </Text>
         </View>
         {pays.length > 0 && <Small style={{ marginTop: space.sm }}>Payments</Small>}
@@ -150,7 +185,8 @@ export default function AppointmentDetail() {
           <Button title={`Take payment (${TTD(balance)})`} icon="cash-outline" size="lg"
             onPress={() => router.push(`/payment/new?appointmentId=${id}`)} style={{ marginTop: space.sm }} />
         )}
-        {a.status !== 'cancelled' && (
+        {noPrice && <Button title="Add price" icon="create-outline" size="lg" onPress={() => setEditing(true)} style={{ marginTop: space.sm }} />}
+        {a.status !== 'cancelled' && !noPrice && (
           <Button title="Share invoice (PDF)" icon="document-text-outline" variant="outline"
             onPress={() => shareAppointmentInvoice(a.id)} />
         )}
@@ -184,6 +220,7 @@ const s = StyleSheet.create({
   name: { fontFamily: fonts.title, fontSize: 22, lineHeight: 28 },
   when: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.xs },
+  warning: { color: colors.warning, fontFamily: fonts.bodyBold },
   moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   bold: { fontFamily: fonts.bodyBold },
   balanceRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: space.sm, marginTop: space.xs },
