@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [loadError, setLoadError] = useState(false);
   // null = couldn't load (e.g. the enquiries table isn't set up yet); the rest of Home still shows
   const [enquiries, setEnquiries] = useState<Enquiry[] | null>(null);
+  const [birthdayDiscount, setBirthdayDiscount] = useState<number | undefined>(); // undefined = the usual discount
 
   const load = useCallback(async () => {
     try {
@@ -86,8 +87,13 @@ export default function Dashboard() {
     setEnquiries(error ? null : (data as Enquiry[]));
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); loadEnquiries(); }, [load, loadEnquiries]));
-  const refresh = () => Promise.all([load(), loadEnquiries()]);
+  const loadDiscount = useCallback(async () => {
+    const { data } = await supabase.from('email_settings').select('birthday_discount').maybeSingle();
+    setBirthdayDiscount(data?.birthday_discount);
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); loadEnquiries(); loadDiscount(); }, [load, loadEnquiries, loadDiscount]));
+  const refresh = () => Promise.all([load(), loadEnquiries(), loadDiscount()]);
 
   async function enquiryDone(id: string) {
     const { error } = await supabase.from('enquiries').update({ status: 'done', handled_at: new Date().toISOString() }).eq('id', id);
@@ -224,7 +230,7 @@ export default function Dashboard() {
               <View style={s.line}>
                 <View style={s.cake}><Text style={{ fontSize: 22 }}>🎂</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.name}>{c.full_name}'s birthday</Text>
+                  <Text style={s.name}>{c.full_name}&apos;s birthday</Text>
                   <Small style={isToday(date) ? { color: colors.primary, fontFamily: fonts.bodyBold } : undefined}>
                     {isToday(date) ? 'Today!' : format(date, 'EEEE d MMMM')}{turning ? ` · turning ${turning}` : ''}
                   </Small>
@@ -232,7 +238,7 @@ export default function Dashboard() {
               </View>
               <View style={s.actions}>
                 {c.phone && <ActionPill label="Send wishes" icon="logo-whatsapp" tone="whatsapp"
-                  onPress={() => Linking.openURL(waLink(c.phone!, birthdayMessage(c.full_name)))} />}
+                  onPress={() => Linking.openURL(waLink(c.phone!, birthdayMessage(c.full_name, birthdayDiscount)))} />}
                 <ActionPill label="View client" icon="person" onPress={() => router.push(`/client/${c.id}`)} />
               </View>
             </Card>

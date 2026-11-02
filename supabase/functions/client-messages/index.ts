@@ -22,6 +22,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { dueMessages, MARKETING, type AppointmentRow, type ClientRow, type Kind } from './rules.ts';
 import { renderEmail, type EmailData } from './templates.ts';
+import { DEFAULT_SETTINGS, type EmailSettings } from './wording.ts';
 
 const env = (k: string, fallback = '') => (Deno.env.get(k) ?? fallback).trim();
 const secretKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -48,8 +49,19 @@ const firstName = (full: string) => full.trim().split(/\s+/)[0] || 'there';
 const unsubscribeUrl = (token: string, kind: Kind) =>
   `${SELF_URL}?unsubscribe=${token}&scope=${MARKETING.includes(kind) ? 'offers' : 'all'}`;
 
-async function sendEmail(to: string, kind: Kind, data: EmailData, idempotencyKey?: string) {
-  const { subject, html, text } = renderEmail(kind, data);
+// What Krystal set in the app. If the table isn't there yet (email-settings.sql not run), use the originals.
+// Any other error stops the run: she may have paused emails, so never guess.
+async function loadSettings(): Promise<EmailSettings> {
+  const { data, error } = await db.from('email_settings').select('*').eq('owner_id', OWNER_ID).maybeSingle();
+  if (error) {
+    if (error.code === 'PGRST205' || error.code === '42P01') return DEFAULT_SETTINGS;
+    throw error;
+  }
+  return { ...DEFAULT_SETTINGS, ...(data ?? {}) };
+}
+
+async function sendEmail(to: string, kind: Kind, data: EmailData, settings: EmailSettings, idempotencyKey?: string) {
+  const { subject, html, text } = renderEmail(kind, data, settings);
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -100,6 +112,9 @@ ${scope === 'offers' ? '<p style="font-size:13px;color:#60514F;margin-top:20px">
 // ---------- Scheduled run ----------
 async function run(dryRun: boolean) {
   const now = new Date();
+  const settings = await loadSettings();
+  if (settings.paused) return { paused: true, sent: [] };
+
   const [clients, appts, sent] = await Promise.all([
     db.from('clients').select('id, full_name, email, birthday, marketing_opt_in, emails_off, unsubscribe_token').eq('owner_id', OWNER_ID),
     // Only what any rule can still act on: the next 3 days of bookings and the last ~2 months of finished visits
@@ -121,7 +136,7 @@ async function run(dryRun: boolean) {
 
   const tokens = new Map(clientRows.map((c) => [c.id, c.unsubscribe_token]));
   const due = dueMessages(now, clientRows, [...allAppts.values()],
-    new Set((sent.data as { dedupe_key: string }[]).map((s) => s.dedupe_key)));
+    new Set((sent.data as { dedupe_key: string }[]).map((s) => s.dedupe_key)), new Set(settings.off_kinds));
 
   if (dryRun || !LIVE) {
     return { live: LIVE, dry_run: true, due: due.map((d) => ({ kind: d.kind, client: d.client.full_name, key: d.key })) };
@@ -143,7 +158,7 @@ async function run(dryRun: boolean) {
         firstName: firstName(d.client.full_name), serviceName: d.appointment?.service_name,
         startsAt: d.appointment?.starts_at, bookingUrl: BOOKING_URL, salonPhone: SALON_PHONE,
         unsubscribeUrl: unsubscribeUrl(tokens.get(d.client.id) ?? '', d.kind),
-      }, d.key);
+      }, settings, d.key);
       await db.from('client_messages').update({ provider_id: id }).eq('id', claim.data.id);
       results.push({ key: d.key, ok: true });
     } catch (e) {
@@ -158,6 +173,7 @@ async function run(dryRun: boolean) {
 
 async function sendSamples(to: string) {
   const kinds: Kind[] = ['reminder_2d', 'reminder_1d', 'aftercare', 'checkin_1w', 'rebook_1m', 'rebook_2m', 'birthday'];
+  const settings = await loadSettings();
   const results = [];
   for (const kind of kinds) {
     try {
@@ -165,7 +181,7 @@ async function sendSamples(to: string) {
         firstName: 'Krystal', serviceName: 'Cavitation', startsAt: new Date(Date.now() + 2 * DAY).toISOString(),
         bookingUrl: BOOKING_URL, salonPhone: SALON_PHONE,
         unsubscribeUrl: `${SELF_URL}?unsubscribe=00000000-0000-0000-0000-000000000000&scope=all`,
-      });
+      }, settings);
       results.push({ kind, ok: true });
     } catch (e) {
       results.push({ kind, ok: false, error: (e as Error).message });

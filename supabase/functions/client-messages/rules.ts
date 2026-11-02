@@ -1,7 +1,9 @@
 // Decides which automatic messages are due right now. Pure logic: no database, no sending,
 // so it can be tested on its own (see rules.test.ts) and reused later for WhatsApp.
 
-export type Kind = 'reminder_2d' | 'reminder_1d' | 'aftercare' | 'checkin_1w' | 'rebook_1m' | 'rebook_2m' | 'birthday';
+import type { EmailKind } from './wording.ts';
+
+export type Kind = EmailKind;
 
 export type ClientRow = {
   id: string; full_name: string; email: string | null; birthday: string | null;
@@ -48,7 +50,9 @@ export function isBirthdayToday(birthday: string | null, now: Date) {
   return t.month === m && t.day === day;
 }
 
-export function dueMessages(now: Date, clients: ClientRow[], appointments: AppointmentRow[], alreadySent: Set<string>): Due[] {
+// `off`: emails Krystal switched off in the app (More -> Email marketing)
+export function dueMessages(now: Date, clients: ClientRow[], appointments: AppointmentRow[], alreadySent: Set<string>,
+  off: ReadonlySet<string> = new Set()): Due[] {
   if (!isSendingHours(now)) return [];
   const t = now.getTime();
   const out: Due[] = [];
@@ -57,7 +61,7 @@ export function dueMessages(now: Date, clients: ClientRow[], appointments: Appoi
     .map((c) => [c.id, c]));
 
   const add = (kind: Kind, key: string, client: ClientRow, appointment?: AppointmentRow) => {
-    if (alreadySent.has(key)) return;
+    if (alreadySent.has(key) || off.has(kind)) return;
     if (MARKETING.includes(kind) && !client.marketing_opt_in) return;
     out.push({ kind, key, client, appointment });
   };

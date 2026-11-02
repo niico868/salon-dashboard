@@ -61,6 +61,7 @@ export default function RootLayout() {
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="services" options={{ title: 'Service menu' }} />
+        <Stack.Screen name="email-marketing" options={{ title: 'Email marketing' }} />
         <Stack.Screen name="client/[id]" options={{ title: 'Client' }} />
         <Stack.Screen name="client/new" options={{ title: 'Client details' }} />
         <Stack.Screen name="appointment/[id]" options={{ title: 'Booking' }} />

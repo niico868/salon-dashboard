@@ -74,6 +74,8 @@ export default function More() {
     <Screen>
       <Row icon="pricetags-outline" label="Service menu and prices" hint="See or change what you offer"
         onPress={() => router.push('/services')} />
+      <Row icon="mail-outline" label="Email marketing" hint="Offers, reminders, aftercare and their words"
+        onPress={() => router.push('/email-marketing')} />
 
       <Card>
         <View style={s.alertHead}>

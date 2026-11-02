@@ -1,6 +1,6 @@
 import { addDays, isLeapYear, startOfDay } from 'date-fns';
 
-const BIRTHDAY_DISCOUNT = 10;   // percent off, used in the WhatsApp message
+const BIRTHDAY_DISCOUNT = 10;   // percent off, until a different one is set under More -> Email marketing
 
 export type Birthday<T> = { client: T; date: Date; turning: number | null };
 
@@ -28,6 +28,6 @@ export function birthdaysWithin<T extends { birthday: string | null }>(clients: 
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
-export const birthdayMessage = (fullName: string) =>
+export const birthdayMessage = (fullName: string, discount = BIRTHDAY_DISCOUNT) =>
   `Happy birthday ${fullName.split(' ')[0]}! 🎂 Wishing you a wonderful year. ` +
-  `As a treat, enjoy ${BIRTHDAY_DISCOUNT}% off your next visit this month.`;
+  `As a treat, enjoy ${discount}% off your next visit this month.`;
