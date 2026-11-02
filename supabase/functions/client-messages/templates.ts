@@ -1,8 +1,7 @@
-// The emails themselves. Words are easy to change here; keep sentences short and warm.
+// The emails themselves: the layout. The words are in wording.ts and can be changed in the app.
 import { aftercareFor, GENERAL_AFTERCARE } from './aftercare.ts';
 import { MARKETING, TIME_ZONE, type Kind } from './rules.ts';
-
-export const BIRTHDAY_DISCOUNT = 10; // percent, same as the app's birthday WhatsApp message
+import { DEFAULT_SETTINGS, fillIn, wordingFor, type EmailSettings } from './wording.ts';
 
 export type EmailData = {
   firstName: string; serviceName?: string; startsAt?: string;
@@ -18,59 +17,35 @@ const when = (iso: string) => new Intl.DateTimeFormat('en-US', {
 
 type Block = { p: string } | { list: string[]; heading?: string } | { button: string };
 
-function content(kind: Kind, d: EmailData): { subject: string; blocks: Block[] } {
+const BUTTONS: Partial<Record<Kind, string>> = {
+  rebook_1m: 'Book my next session', rebook_2m: 'Book a visit', birthday: 'Treat myself',
+};
+
+function content(kind: Kind, d: EmailData, settings: EmailSettings): { subject: string; blocks: Block[] } {
   const svc = d.serviceName ?? 'your treatment';
-  switch (kind) {
-    case 'reminder_2d':
-      return { subject: `See you soon: ${svc} on ${when(d.startsAt!)}`, blocks: [
-        { p: `Hi ${d.firstName}, this is a friendly reminder that your ${svc} is booked for ${when(d.startsAt!)}.` },
-        { p: 'If you need to change the time, just reply to this email or call us, and we will find a better slot.' },
-      ] };
-    case 'reminder_1d':
-      return { subject: `Tomorrow: your ${svc} at Melt Aways`, blocks: [
-        { p: `Hi ${d.firstName}, we are looking forward to seeing you for your ${svc} on ${when(d.startsAt!)}.` },
-        { p: 'Running late or need to reschedule? Reply to this email or call us.' },
-      ] };
-    case 'aftercare': {
-      const specific = aftercareFor(svc);
-      return { subject: `Your aftercare for ${svc}`, blocks: [
-        { p: `Hi ${d.firstName}, thank you for visiting Melt Aways. Here is how to look after yourself so you get the best results.` },
-        ...(specific ? [{ heading: `${specific.title} aftercare`, list: specific.points }] : []),
-        { heading: 'General care', list: GENERAL_AFTERCARE },
-        { p: 'Questions at any time? Just reply to this email.' },
-      ] };
-    }
-    case 'checkin_1w':
-      return { subject: 'How are you feeling after your visit?', blocks: [
-        { p: `Hi ${d.firstName}, it has been a week since your ${svc}. We hope you are feeling great and starting to see results.` },
-        { p: 'If you have any questions, or anything does not feel right, reply to this email and we will help.' },
-        { p: 'Loved your experience? A short review means the world to a small business like ours.' },
-      ] };
-    case 'rebook_1m':
-      return { subject: `Ready for your next ${svc}?`, blocks: [
-        { p: `Hi ${d.firstName}, it has been a month since your ${svc}. Regular sessions help you keep and build on your results.` },
-        { p: 'Book your next visit whenever suits you.' },
-        { button: 'Book my next session' },
-      ] };
-    case 'rebook_2m':
-      return { subject: "Hope you're doing well and sticking to your dietary regimen", blocks: [
-        { p: `Hi ${d.firstName}, we hope you're doing well and sticking to your dietary regimen. It has been a little while since your last visit. Whenever you are ready to continue your journey, we would love to see you again.` },
-        { p: 'Not sure which treatment is right for you now? Book a consultation and we will plan it together.' },
-        { button: 'Book a visit' },
-      ] };
-    case 'birthday':
-      return { subject: `Happy birthday, ${d.firstName}!`, blocks: [
-        { p: `Happy birthday ${d.firstName}! Wishing you a wonderful year ahead.` },
-        { p: `As a treat from all of us, enjoy ${BIRTHDAY_DISCOUNT}% off your next visit this month.` },
-        { button: 'Treat myself' },
-      ] };
+  const values = {
+    name: d.firstName, treatment: svc, date: d.startsAt ? when(d.startsAt) : '',
+    discount: String(settings.birthday_discount),
+  };
+  const words = wordingFor(kind, settings.wording);
+  const subject = fillIn(words.subject, values).replace(/\s+/g, ' ').trim();
+  const blocks: Block[] = words.body.split(/\n+/).map((l) => l.trim()).filter(Boolean).map((l) => ({ p: fillIn(l, values) }));
+
+  if (kind === 'aftercare') {
+    const specific = aftercareFor(svc, settings.aftercare);
+    if (specific) blocks.push({ heading: `${specific.title} aftercare`, list: specific.points });
+    blocks.push({ heading: 'General care', list: GENERAL_AFTERCARE });
+    blocks.push({ p: 'Questions at any time? Just reply to this email.' });
   }
+  const button = BUTTONS[kind];
+  if (button) blocks.push({ button });
+  return { subject, blocks };
 }
 
 const ROSE = '#9D3438', INK = '#1D1A19', TAUPE = '#60514F', CREAM = '#F9F2ED', BG = '#FFFCF9', BORDER = '#EBDEDC';
 
-export function renderEmail(kind: Kind, d: EmailData): Email {
-  const { subject, blocks } = content(kind, d);
+export function renderEmail(kind: Kind, d: EmailData, settings: EmailSettings = DEFAULT_SETTINGS): Email {
+  const { subject, blocks } = content(kind, d, settings);
   const offers = MARKETING.includes(kind);
 
   const html = blocks.map((b) => {

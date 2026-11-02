@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dueMessages, isBirthdayToday, type AppointmentRow, type ClientRow } from './rules.ts';
 import { renderEmail } from './templates.ts';
+import { DEFAULT_SETTINGS, unknownPlaceholders } from './wording.ts';
 
 const H = 3600_000, D = 24 * H;
 // Tue 10 Nov 2026, 9:00 AM in Trinidad (UTC-4)
@@ -90,4 +91,58 @@ test('every email renders with an unsubscribe link and safe text', () => {
     assert.ok(e.html.includes('https://x/unsub') && e.text.includes('https://x/unsub'), kind);
     assert.ok(!e.html.includes('<Ana>'), `${kind} escapes names`);
   }
+});
+
+const sample = { firstName: 'Ana', serviceName: 'Cavitation', startsAt: at(36 * H),
+  bookingUrl: 'https://meltawaysspa.com/booking', unsubscribeUrl: 'https://x/unsub', salonPhone: '' };
+
+test('an email switched off in the app is not sent, others still are', () => {
+  const c = client({ birthday: '1990-11-10', marketing_opt_in: true });
+  assert.deepEqual(dueMessages(NOW, [c], [], new Set(), new Set(['birthday'])), []);
+  assert.deepEqual(dueMessages(NOW, [client()], [appt()], new Set(), new Set(['birthday'])).map((d) => d.kind), ['reminder_2d']);
+});
+
+test('original words are unchanged when nothing is saved', () => {
+  const e = renderEmail('birthday', sample);
+  assert.equal(e.subject, 'Happy birthday, Ana!');
+  assert.ok(e.text.includes('enjoy 10% off your next visit this month.'));
+  assert.ok(e.html.includes('Treat myself'));
+  assert.ok(renderEmail('reminder_1d', sample).subject.startsWith('Tomorrow: your Cavitation'));
+});
+
+test('saved discount and words are used, and fill-ins are filled', () => {
+  const e = renderEmail('birthday', sample, { ...DEFAULT_SETTINGS, birthday_discount: 25 });
+  assert.ok(e.text.includes('enjoy 25% off'));
+  const mine = renderEmail('rebook_1m', sample, { ...DEFAULT_SETTINGS,
+    wording: { rebook_1m: { subject: 'Time for {treatment}, {name}', body: 'Line one {name}\n\nLine two' } } });
+  assert.equal(mine.subject, 'Time for Cavitation, Ana');
+  assert.ok(mine.html.includes('Line one Ana</p>') && mine.html.includes('Line two</p>'));
+  assert.ok(mine.html.includes('Book my next session'), 'the booking button stays');
+});
+
+test('blank saved words fall back to the original', () => {
+  const e = renderEmail('checkin_1w', sample, { ...DEFAULT_SETTINGS, wording: { checkin_1w: { subject: '  ', body: '' } } });
+  assert.equal(e.subject, 'How are you feeling after your visit?');
+  assert.ok(e.text.includes('it has been a week since your Cavitation'));
+});
+
+test('saved words are escaped, and a client name cannot inject a fill-in', () => {
+  const e = renderEmail('checkin_1w', { ...sample, firstName: '{treatment}' }, { ...DEFAULT_SETTINGS,
+    wording: { checkin_1w: { body: '<b>Hi</b> {name}' } } });
+  assert.ok(e.html.includes('&lt;b&gt;Hi&lt;/b&gt; {treatment}'));
+});
+
+test('aftercare typed in the app appears as bullets, and only for that treatment', () => {
+  const saved = { ...DEFAULT_SETTINGS, aftercare: { Cavitation: 'Drink water\n\n  Rest tonight ' } };
+  const e = renderEmail('aftercare', sample, saved);
+  assert.ok(e.html.includes('Cavitation aftercare') && e.html.includes('<li style="margin-bottom:6px">Rest tonight</li>'));
+  assert.ok(!e.html.includes('<li style="margin-bottom:6px"></li>'));
+  assert.ok(e.html.includes('General care'));
+  assert.ok(!renderEmail('aftercare', { ...sample, serviceName: 'Facial' }, saved).html.includes('Drink water'));
+});
+
+test('typos in fill-in words are caught', () => {
+  assert.deepEqual(unknownPlaceholders('Hi {nme}, {name}', 'birthday'), ['nme']);
+  assert.deepEqual(unknownPlaceholders('{discount}% for {name}', 'birthday'), []);
+  assert.deepEqual(unknownPlaceholders('{discount}%', 'rebook_1m'), ['discount']);
 });

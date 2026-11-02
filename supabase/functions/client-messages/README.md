@@ -17,8 +17,10 @@ Nobody gets the same email twice. Clients with no email, or who unsubscribed, ge
 Every email has an unsubscribe link at the bottom. Replies go to `meltawaystt@gmail.com`.
 Each client's profile in the app lists the automatic emails they've been sent.
 
-The words of every email are in `templates.ts`. **Aftercare guidelines per treatment** go in `aftercare.ts`:
-Krystal fills those in. Until she does, aftercare emails carry only the general care section.
+Krystal runs all of this from the app, under **More → Email marketing**: pausing everything, switching single
+emails on or off, changing their words, the birthday discount, and **aftercare points per treatment**. Until she
+adds points, aftercare emails carry only the general care section. Saved changes apply from the next run, with no
+redeploy. The original words are in `wording.ts`, and the settings table comes from `supabase/sql/email-settings.sql`.
 
 ## Setup (once, in this order)
 
@@ -30,6 +32,8 @@ In Supabase: **SQL Editor → New query**. Paste everything in `supabase/sql/cli
 In the last part, replace `PROJECT_REF` with the `xxxx` from your Supabase URL (`https://xxxx.supabase.co`)
 and `CRON_SECRET_HERE` with a long random password you make up now (keep it; it's used in step 3).
 Click **Run**. You should see "Success".
+
+Then do the same with `supabase/sql/email-settings.sql` (nothing to replace in that one).
 
 ### 2. Resend (the email sender)
 

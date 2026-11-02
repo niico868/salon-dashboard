@@ -1,10 +1,11 @@
 // AFTERCARE GUIDELINES PER TREATMENT
 //
-// Krystal: these are your words, not ours. Fill in the points you already give clients after
-// each treatment. Each line becomes one bullet in the aftercare email.
+// Krystal fills in her points in the app (More -> Email marketing -> Aftercare by treatment), in
+// her own words. Each line becomes one bullet in the aftercare email. The app's list of treatments
+// comes from here, and this file must keep having no imports because the app reads it too.
 //
 // - A treatment is matched when its name in the app contains any of the `match` words (not case sensitive).
-// - Leave `points` empty ([]) and that treatment's email just gets the general care section below.
+// - A treatment with no points just gets the general care section below.
 // - After changing this file, redeploy: npx supabase functions deploy client-messages --no-verify-jwt
 //
 // Nothing here is medical advice written by the developer. Please only add guidance you are
@@ -34,7 +35,12 @@ export const GENERAL_AFTERCARE = [
   'If anything feels unusual or you have any concerns, contact us straight away. If it feels urgent, seek medical attention.',
 ];
 
-export function aftercareFor(serviceName: string): Aftercare | undefined {
+// `saved` is what Krystal typed in the app: treatment title -> one point per line
+export const pointsFromText = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
+
+export function aftercareFor(serviceName: string, saved: Record<string, string> = {}): Aftercare | undefined {
   const name = ` ${serviceName.toLowerCase()} `;
-  return AFTERCARE.find((a) => a.points.length && a.match.some((m) => name.includes(m)));
+  return AFTERCARE
+    .map((a) => (typeof saved[a.title] === 'string' ? { ...a, points: pointsFromText(saved[a.title]) } : a))
+    .find((a) => a.points.length && a.match.some((m) => name.includes(m)));
 }
