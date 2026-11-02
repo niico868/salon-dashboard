@@ -113,7 +113,7 @@ export default function AppointmentDetail() {
   return (
     <Screen>
       <Stack.Screen options={{ headerRight: menu.length > 0 ? () => <OverflowMenu items={menu} /> : undefined }} />
-      <BookingEditor booking={a} visible={editing} onClose={() => setEditing(false)} onSaved={load} />
+      {editing && <BookingEditor booking={a} onClose={() => setEditing(false)} onSaved={load} />}
       <Card>
         <View style={s.head}>
           <Avatar name={a.client_name} size={52} />

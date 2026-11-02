@@ -64,7 +64,8 @@
     "lint": "expo lint"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "testPathIgnorePatterns": ["/node_modules/", "/supabase/"]
   },
   "private": true
 }

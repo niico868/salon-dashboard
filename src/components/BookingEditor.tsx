@@ -16,30 +16,25 @@ import type { AppointmentBalance, Service } from '../lib/types';
 
 const CONFIRM_WORDS = 'MELT AWAYS';
 
-type Props = { booking: AppointmentBalance; visible: boolean; onClose: () => void; onSaved: () => void };
+type Props = { booking: AppointmentBalance; onClose: () => void; onSaved: () => void };
 
 // Change a booking's service, price and notes. Saving needs MELT AWAYS typed, so nothing changes by accident.
-export default function BookingEditor({ booking: b, visible, onClose, onSaved }: Props) {
+// Show it only while editing, so it starts fresh from the booking each time it opens.
+export default function BookingEditor({ booking: b, onClose, onSaved }: Props) {
   const toast = useToast();
   const [services, setServices] = useState<Service[]>([]);
   const [service, setService] = useState<Service | null>(null);
-  const [price, setPrice] = useState('');
-  const [notes, setNotes] = useState('');
+  const [price, setPrice] = useState(Number(b.price) > 0 ? String(Number(b.price)) : '');
+  const [notes, setNotes] = useState(b.notes ?? '');
   const [typed, setTyped] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Start from the booking as it is now, each time the editor opens
   useEffect(() => {
-    if (!visible) return;
-    setService(null);
-    setPrice(Number(b.price) > 0 ? String(Number(b.price)) : '');
-    setNotes(b.notes ?? '');
-    setTyped('');
     supabase.from('services').select('*').eq('active', true).order('category').order('name').then(({ data, error }) => {
       if (error) Alert.alert("Couldn't load the service menu", error.message);
       else setServices((data as Service[]) ?? []);
     });
-  }, [visible, b.price, b.notes]);
+  }, []);
 
   const paid = Number(b.paid);
   const newPrice = price.trim() === '' ? NaN : Number(price);
@@ -80,7 +75,7 @@ export default function BookingEditor({ booking: b, visible, onClose, onSaved }:
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={s.page}>
         <View style={s.header}>
           <Text style={s.title}>Edit booking</Text>
