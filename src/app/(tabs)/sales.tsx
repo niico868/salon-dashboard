@@ -84,12 +84,12 @@ export default function SalesTab() {
         <>
           <View style={s.grid}>
             <StatCard label="Money taken" icon="checkmark-circle" amount={data?.actual ?? 0} format={TTD} color={colors.success} index={0} />
-            <StatCard label="Still to collect" icon="time" amount={data?.potential ?? 0} format={TTD} color={colors.primary} index={1} />
+            <StatCard label="Still to collect" icon="time" amount={data?.potential ?? 0} format={TTD} index={1} />
             <StatCard label="Total expected" amount={data?.expected ?? 0} format={TTD} index={2} hint="Taken + still to collect" />
             <StatCard label="Bookings" value={String(data?.bookings ?? 0)} index={3} />
           </View>
 
-          {period !== 'day' && (
+          {period !== 'day' && ((data?.expected ?? 0) > 0 || (data?.actual ?? 0) > 0) && (
             <Card>
               <Heading>Day by day</Heading>
               <BarChart stackData={bars} barWidth={period === 'week' ? 24 : 6} spacing={period === 'week' ? 16 : 4}
@@ -130,27 +130,29 @@ export default function SalesTab() {
               <View key={a.id} style={s.inv}>
                 <Pressable style={{ flex: 1, gap: 4 }} onPress={() => router.push(`/appointment/${a.id}`)} accessibilityRole="button">
                   <Text style={s.invName}>{a.client_name}</Text>
-                  <Small>{format(new Date(a.starts_at), 'EEE d MMM')} · {a.service_name} · {TTD(Number(a.price))}</Small>
+                  <Small>{format(new Date(a.starts_at), 'EEE d MMM')} · {a.service_name}{Number(a.price) > 0 ? ` · ${TTD(Number(a.price))}` : ''}</Small>
                   <BookingChip a={a} />
                 </Pressable>
-                <Pressable onPress={() => shareAppointmentInvoice(a.id)} hitSlop={8} style={s.pdf}
-                  accessibilityRole="button" accessibilityLabel={`Invoice for ${a.client_name}`}>
-                  <Ionicons name="document-text-outline" size={20} color={colors.primary} />
-                  <Text style={s.pdfText}>Invoice</Text>
-                </Pressable>
+                {Number(a.price) > 0 && (
+                  <Pressable onPress={() => shareAppointmentInvoice(a.id)} hitSlop={8} style={s.pdf}
+                    accessibilityRole="button" accessibilityLabel={`Invoice for ${a.client_name}`}>
+                    <Ionicons name="document-text-outline" size={20} color={colors.primary} />
+                    <Text style={s.pdfText}>Invoice</Text>
+                  </Pressable>
+                )}
               </View>
             ))}
           </Card>
 
-          <Card>
+          {months.some((m) => m.value > 0) && <Card>
             <Heading>Last 6 months</Heading>
             <Small>Money taken each month</Small>
             <BarChart data={months.map((m) => ({ value: m.value, label: m.label, frontColor: colors.chartReceived }))}
               barWidth={26} spacing={16} height={150} noOfSections={3} yAxisThickness={0} xAxisThickness={0}
-              rulesColor={colors.border} barBorderTopLeftRadius={6} barBorderTopRightRadius={6}
+              rulesColor={colors.border} barBorderTopLeftRadius={6} barBorderTopRightRadius={6} isAnimated animationDuration={300}
               yAxisTextStyle={{ color: colors.textMuted, fontSize: 12, fontFamily: fonts.body }}
               xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 13, fontFamily: fonts.bodyBold }} />
-          </Card>
+          </Card>}
         </>
       )}
     </Screen>

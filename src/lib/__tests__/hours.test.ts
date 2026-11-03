@@ -1,4 +1,4 @@
-import { isOutsideHours, nextOpenSlot, outsideHoursMessage } from '../hours';
+import { isOutsideHours, nextOpenSlot, openDaysFrom, outsideHoursMessage, slotIsTaken, slotsForDay } from '../hours';
 
 // 3 Nov 2026 is a Tuesday
 const on = (day: number, h: number, m = 0) => new Date(2026, 10, day, h, m);
@@ -19,4 +19,27 @@ describe('isOutsideHours', () => {
     expect(isOutsideHours(on(2, 11), on(2, 12))).toBe(true);
     expect(outsideHoursMessage(on(2, 11), on(2, 12))).toContain('Mondays');
   });
+});
+
+describe('openDaysFrom', () => {
+  it('skips closed days', () => {
+    expect(openDaysFrom(on(7, 12), 2)).toEqual([on(7, 0), on(10, 0)]);
+  });
+});
+
+describe('slotsForDay', () => {
+  it('lists half-hour starts that finish by closing', () => {
+    const slots = slotsForDay(on(3, 0), 60);
+    expect(slots[0]).toEqual(on(3, 10));
+    expect(slots[slots.length - 1]).toEqual(on(3, 15));
+    expect(slots.length).toBe(11);
+  });
+  it('has no slots for a treatment longer than the day', () => expect(slotsForDay(on(3, 0), 400).length).toBe(0));
+});
+
+describe('slotIsTaken', () => {
+  const busy = [{ start: on(3, 11), end: on(3, 12) }];
+  it('flags an overlap', () => expect(slotIsTaken(on(3, 10, 30), 60, busy)).toBe(true));
+  it('allows finishing as another starts', () => expect(slotIsTaken(on(3, 10), 60, busy)).toBe(false));
+  it('allows starting as another ends', () => expect(slotIsTaken(on(3, 12), 60, busy)).toBe(false));
 });

@@ -6,7 +6,7 @@ import { colors, fonts, radius } from '../lib/theme';
 export type ChipStatus = 'booked' | 'completed' | 'cancelled' | 'no_show' | 'paid' | 'owes' | 'pending' | 'overdue' | 'due' | 'website' | 'price_needed';
 
 const LOOK: Record<ChipStatus, { label: string; fg: string; bg: string }> = {
-  booked:    { label: 'Booked',    fg: colors.primary, bg: colors.blush },
+  booked:    { label: 'Upcoming',    fg: colors.primary, bg: colors.blush },
   completed: { label: 'Done',      fg: colors.success, bg: colors.successBg },
   paid:      { label: 'Paid',      fg: colors.success, bg: colors.successBg },
   owes:      { label: 'Owes',      fg: colors.warning, bg: colors.warningBg },

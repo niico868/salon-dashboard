@@ -61,9 +61,10 @@ export default function Clients() {
             <EmptyState icon="people-outline" title="No clients yet" message="Add your first client to start booking."
               actionLabel="Add client" onAction={() => router.push('/client/new')} />
           )}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <ListRow title={item.full_name} subtitle={item.phone ?? 'No phone number saved'}
               left={<Avatar name={item.full_name} />}
+              style={{ ...s.row, ...(index === 0 ? s.first : null), ...(index === (list?.length ?? 0) - 1 ? s.last : s.divider) }}
               onPress={() => router.push(`/client/${item.id}`)} />
           )} />
       )}
@@ -76,6 +77,10 @@ const s = StyleSheet.create({
   search: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: colors.surface, borderRadius: radius.md,
     borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, minHeight: touch.min + 4 },
   searchInput: { flex: 1, fontSize: 17, paddingVertical: 10, fontFamily: fonts.body },
-  list: { padding: space.lg, paddingTop: space.sm, gap: space.sm, width: '100%', maxWidth: 640, alignSelf: 'center' },
-  count: { color: colors.textMuted, fontSize: 14, marginBottom: 2 },
+  list: { padding: space.lg, paddingTop: space.sm, width: '100%', maxWidth: 640, alignSelf: 'center' },
+  count: { color: colors.textMuted, fontSize: 14, marginBottom: space.sm },
+  row: { borderRadius: 0, shadowOpacity: 0, elevation: 0 },
+  first: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg },
+  last: { borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg },
+  divider: { borderBottomWidth: 1, borderBottomColor: colors.border },
 });

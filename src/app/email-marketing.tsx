@@ -21,16 +21,18 @@ import { colors, fonts, radius, space } from '../lib/theme';
 
 type EmailInfo = { kind: EmailKind; label: string; when: string };
 
+const BEFORE: EmailInfo[] = [
+  { kind: 'reminder_2d', label: '2-day reminder', when: '2 days before the appointment' },
+  { kind: 'reminder_1d', label: 'Day-before reminder', when: 'The day before the appointment' },
+];
+const AFTER: EmailInfo[] = [
+  { kind: 'aftercare', label: 'Aftercare', when: 'Soon after you mark a visit Done' },
+  { kind: 'checkin_1w', label: 'Check-in', when: '1 week after the visit' },
+];
 const OFFERS: EmailInfo[] = [
   { kind: 'rebook_1m', label: 'Rebooking offer', when: '1 month after their last visit' },
   { kind: 'rebook_2m', label: 'Second rebooking offer', when: '2 months after their last visit' },
   { kind: 'birthday', label: 'Birthday wishes', when: 'On their birthday' },
-];
-const APPOINTMENT: EmailInfo[] = [
-  { kind: 'reminder_2d', label: 'Reminder', when: '2 days before the appointment' },
-  { kind: 'reminder_1d', label: 'Reminder', when: 'The day before the appointment' },
-  { kind: 'aftercare', label: 'Aftercare', when: 'Right after you mark a visit Done' },
-  { kind: 'checkin_1w', label: 'Check-in', when: '1 week after the visit' },
 ];
 
 const FILL_IN_HELP: Record<string, string> = {
@@ -226,6 +228,14 @@ export default function EmailMarketing() {
         </View>
       </Card>
 
+      <Text style={s.section}>Before the visit</Text>
+      <Small>Sent to every client with an email address, unless they unsubscribed.</Small>
+      {BEFORE.map(row)}
+
+      <Text style={s.section}>After the visit</Text>
+      <Small>Sent to every client with an email address, unless they unsubscribed.</Small>
+      {AFTER.map(row)}
+
       <Text style={s.section}>Offers</Text>
       <Small>Only for clients who agreed to offers. You can see this on their profile.</Small>
       {OFFERS.map(row)}
@@ -234,10 +244,6 @@ export default function EmailMarketing() {
           onChangeText={(discount) => change({ discount })} error={errors.discount}
           hint="Used in the birthday email and the birthday WhatsApp message." />
       </Card>
-
-      <Text style={s.section}>Appointment emails</Text>
-      <Small>Sent to every client with an email address, unless they unsubscribed.</Small>
-      {APPOINTMENT.map(row)}
 
       <Text style={s.section}>Aftercare by treatment</Text>
       <Small>Your own points for each treatment, one per line. Only add guidance you already give clients. Leave a treatment empty and its email carries the general care section only.</Small>

@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { addDays, format, formatDistanceToNowStrict, isPast, isToday } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -5,6 +6,7 @@ import { Alert, Linking, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BarChart } from 'react-native-gifted-charts';
 import ActionPill from '../../components/ActionPill';
+import AnimatedNumber from '../../components/AnimatedNumber';
 import { Text } from '../../components/AppText';
 import Avatar from '../../components/Avatar';
 import BookingChip from '../../components/BookingChip';
@@ -18,11 +20,10 @@ import LoadError from '../../components/LoadError';
 import Screen from '../../components/Screen';
 import SectionHeader from '../../components/SectionHeader';
 import { SkeletonList } from '../../components/Skeleton';
-import StatCard from '../../components/StatCard';
 import StatusChip from '../../components/StatusChip';
 import TimeBadge from '../../components/TimeBadge';
 import { useToast } from '../../components/Toast';
-import { Body, Small } from '../../components/Typography';
+import { Body, Label, Small } from '../../components/Typography';
 import { Birthday, birthdayMessage, birthdaysWithin } from '../../lib/birthdays';
 import { TTD } from '../../lib/money';
 import { waLink } from '../../lib/phone';
@@ -46,6 +47,8 @@ export default function Dashboard() {
   const [followUps, setFollowUps] = useState<Client[]>([]);
   const [birthdays, setBirthdays] = useState<Birthday<Client>[]>([]);
   const [loadError, setLoadError] = useState(false);
+  const [openVisits, setOpenVisits] = useState(0);   // past visits still marked as booked
+  const [owed, setOwed] = useState({ total: 0, visits: 0 });   // money owed for past visits
   // null = couldn't load (e.g. the enquiries table isn't set up yet); the rest of Home still shows
   const [enquiries, setEnquiries] = useState<Enquiry[] | null>(null);
   const [birthdayDiscount, setBirthdayDiscount] = useState<number | undefined>(); // undefined = the usual discount
@@ -55,7 +58,7 @@ export default function Dashboard() {
       const now = new Date();
       const d = rangeFor('day', now), w = rangeFor('week', now);
 
-      const [t, wk, list, next, fu, bd] = await Promise.all([
+      const [t, wk, list, next, fu, bd, open, owing] = await Promise.all([
         salesBetween(d.from, d.to),
         salesBetween(w.from, w.to),
         supabase.from('appointment_balances').select('*').neq('status', 'cancelled')
@@ -65,14 +68,19 @@ export default function Dashboard() {
         supabase.from('clients').select('*').not('follow_up_date', 'is', null)
           .lte('follow_up_date', format(addDays(now, 7), 'yyyy-MM-dd')).order('follow_up_date'),
         supabase.from('clients').select('*').not('birthday', 'is', null),
+        supabase.from('appointment_balances').select('id').eq('status', 'booked').lt('ends_at', now.toISOString()),
+        supabase.from('appointment_balances').select('balance').in('status', ['booked', 'completed'])
+          .gt('balance', 0).lt('starts_at', now.toISOString()),
       ]);
-      const queryError = list.error ?? next.error ?? fu.error ?? bd.error;
+      const queryError = list.error ?? next.error ?? fu.error ?? bd.error ?? open.error ?? owing.error;
       if (queryError) throw queryError;
       setToday(t); setWeek(wk);
       setTodayList((list.data as AppointmentBalance[]) ?? []);
       setUpcoming((next.data as AppointmentBalance[]) ?? []);
       setFollowUps((fu.data as Client[]) ?? []);
       setBirthdays(birthdaysWithin((bd.data as Client[]) ?? [], now));
+      setOpenVisits(open.data?.length ?? 0);
+      setOwed({ total: (owing.data ?? []).reduce((sum, a) => sum + Number(a.balance), 0), visits: owing.data?.length ?? 0 });
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -130,7 +138,8 @@ export default function Dashboard() {
       (stillToCollect > 0 ? ` · ${TTD(stillToCollect)} still to collect` : '') +
       (needPrice > 0 ? ` · ${needPrice} need${needPrice === 1 ? 's' : ''} a price` : '') +
       (stillToCollect <= 0 && needPrice === 0 ? ' · all paid' : '');
-  const attention = (enquiries?.length ?? 0) + followUps.length + birthdays.length;
+  const attention = (enquiries?.length ?? 0) + followUps.length + birthdays.length + (openVisits > 0 ? 1 : 0) + (owed.visits > 0 ? 1 : 0);
+  const hasWeekData = (week?.expected ?? 0) > 0 || (week?.actual ?? 0) > 0;
 
   return (
     <Screen onRefresh={refresh} style={{ paddingTop: insets.top + space.md }}>
@@ -148,34 +157,18 @@ export default function Dashboard() {
 
       {loaded && !loadError && (
         <>
-          <SectionHeader title="Today" count={activeToday.length}
-            actionLabel="Open calendar" onAction={() => router.push('/calendar')} />
-          {todayList.length === 0 ? (
-            <Card style={{ padding: 0 }}>
-              <EmptyState icon="sunny-outline" title="No bookings today" message="Enjoy the quiet, or add a booking."
-                actionLabel="Book an appointment" onAction={() => router.push('/appointment/new')} />
-            </Card>
-          ) : todayList.map((a, i) => (
-            <FadeInView key={a.id} index={i}>
-              <ListRow title={a.client_name} subtitle={a.service_name}
-                left={<TimeBadge date={new Date(a.starts_at)} />}
-                right={<BookingChip a={a} />}
-                accent={a.status === 'completed' ? colors.success : undefined}
-                onPress={() => router.push(`/appointment/${a.id}`)} />
-            </FadeInView>
-          ))}
-
-          <SectionHeader title="Money" />
-          <View style={s.grid}>
-            <StatCard label="Taken today" icon="checkmark-circle" amount={today?.actual ?? 0} format={TTD}
-              color={colors.success} index={0} />
-            <StatCard label="Still to collect today" icon="time" amount={stillToCollect} format={TTD}
-              color={stillToCollect > 0 ? colors.primary : colors.text} index={1} />
-            <StatCard label="Taken this week" amount={week?.actual ?? 0} format={TTD} color={colors.success} index={2} />
-            <StatCard label="Expected this week" amount={week?.expected ?? 0} format={TTD} index={3} />
-          </View>
-
           {attention > 0 && <SectionHeader title="Needs your attention" count={attention} />}
+
+          {openVisits > 0 && (
+            <ListRow title={`${openVisits} past visit${openVisits === 1 ? '' : 's'} to close out`} subtitle="Mark each one done or not shown up"
+              left={<View style={s.cake}><Ionicons name="checkbox-outline" size={22} color={colors.primary} /></View>}
+              onPress={() => router.push('/visits?view=open')} />
+          )}
+          {owed.visits > 0 && (
+            <ListRow title={`Clients owe ${TTD(owed.total)}`} subtitle={`From ${owed.visits} past visit${owed.visits === 1 ? '' : 's'}`}
+              left={<View style={s.cake}><Ionicons name="wallet-outline" size={22} color={colors.primary} /></View>}
+              onPress={() => router.push('/visits?view=owed')} />
+          )}
 
           {(enquiries ?? []).map((e) => (
             <Card key={e.id} style={s.enquiry}>
@@ -247,6 +240,37 @@ export default function Dashboard() {
             </Card>
           ))}
 
+          <SectionHeader title="Today" count={activeToday.length}
+            actionLabel="Open calendar" onAction={() => router.push('/calendar')} />
+          {todayList.length === 0 ? (
+            <Card style={{ padding: 0 }}>
+              <EmptyState icon="sunny-outline" title="No bookings today" message="Enjoy the quiet, or add a booking."
+                actionLabel="Book an appointment" onAction={() => router.push('/appointment/new')} />
+            </Card>
+          ) : todayList.map((a, i) => (
+            <FadeInView key={a.id} index={i}>
+              <ListRow title={a.client_name} subtitle={a.service_name}
+                left={<TimeBadge date={new Date(a.starts_at)} />}
+                right={<BookingChip a={a} />}
+                accent={a.status === 'completed' ? colors.success : undefined}
+                onPress={() => router.push(`/appointment/${a.id}`)} />
+            </FadeInView>
+          ))}
+
+          <SectionHeader title="Money" />
+          <Card style={s.hero}>
+            <Label>Taken today</Label>
+            <AnimatedNumber value={today?.actual ?? 0} format={TTD} style={[s.heroValue, (today?.actual ?? 0) > 0 && { color: colors.success }]} />
+            <View style={s.heroLine}>
+              <Body style={s.heroLabel}>Still to collect today</Body>
+              <Body style={s.heroAmount}>{TTD(stillToCollect)}</Body>
+            </View>
+            <View style={s.heroLine}>
+              <Body style={s.heroLabel}>Taken this week</Body>
+              <Body style={s.heroAmount}>{TTD(week?.actual ?? 0)} of {TTD(week?.expected ?? 0)}</Body>
+            </View>
+          </Card>
+
           <SectionHeader title="Coming up" actionLabel="See all" onAction={() => router.push('/calendar')} />
           {upcoming.length === 0
             ? <Body style={{ color: colors.textMuted }}>Nothing booked for the next 7 days.</Body>
@@ -256,9 +280,11 @@ export default function Dashboard() {
                 onPress={() => router.push(`/appointment/${a.id}`)} />
             ))}
 
-          <SectionHeader title="This week" actionLabel="Sales details" onAction={() => router.push('/sales')} />
+          {hasWeekData && (
+            <>
+              <SectionHeader title="This week" actionLabel="Sales details" onAction={() => router.push('/sales')} />
           <Card>
-            <Small>{week?.bookings ?? 0} bookings this week</Small>
+            <Small>{week?.bookings ?? 0} booking{week?.bookings === 1 ? '' : 's'} this week</Small>
             <BarChart stackData={weekBars} barWidth={24} spacing={16} height={150} noOfSections={3}
               yAxisThickness={0} xAxisThickness={0} rulesColor={colors.border}
               yAxisTextStyle={{ color: colors.textMuted, fontSize: 12, fontFamily: fonts.body }}
@@ -268,6 +294,8 @@ export default function Dashboard() {
               <View style={s.legendItem}><View style={[s.dot, { backgroundColor: colors.chartDue }]} /><Small>Still to collect</Small></View>
             </View>
           </Card>
+            </>
+          )}
         </>
       )}
     </Screen>
@@ -276,7 +304,11 @@ export default function Dashboard() {
 
 const s = StyleSheet.create({
   quick: { flexDirection: 'row', gap: space.md, marginTop: space.sm },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
+  hero: { padding: space.xl, gap: space.xs },
+  heroValue: { fontSize: 40, lineHeight: 48, marginBottom: space.sm },
+  heroLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.md, paddingVertical: 4 },
+  heroLabel: { flex: 1, color: colors.textMuted },
+  heroAmount: { fontFamily: fonts.bodyBold },
   line: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   name: { fontFamily: fonts.bodyBold, fontSize: 17 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.xs },

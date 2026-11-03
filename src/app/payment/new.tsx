@@ -133,7 +133,7 @@ const s = StyleSheet.create({
   amountBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, backgroundColor: colors.background,
     borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.border, paddingVertical: space.md, paddingHorizontal: space.lg },
   currency: { fontFamily: fonts.bodyBold, fontSize: 22, color: colors.textMuted },
-  amount: { flex: 1, fontFamily: fonts.title, fontSize: 38, color: colors.text, textAlign: 'center', minWidth: 120 },
+  amount: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 38, color: colors.text, textAlign: 'center', minWidth: 120 },
   methods: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   method: { flexGrow: 1, flexBasis: '45%', alignItems: 'center', gap: 6, paddingVertical: space.md, borderRadius: radius.md,
     borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface },

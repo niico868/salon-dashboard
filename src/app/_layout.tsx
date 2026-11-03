@@ -66,7 +66,8 @@ export default function RootLayout() {
         <Stack.Screen name="client/new" options={{ title: 'Client details' }} />
         <Stack.Screen name="appointment/[id]" options={{ title: 'Booking' }} />
         <Stack.Screen name="appointment/new" options={{ title: 'New booking' }} />
-        <Stack.Screen name="payment/new" options={{ title: 'Take payment' }} />
+        <Stack.Screen name="payment/new" options={{ title: 'Take payment', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="visits" options={{ title: 'Visits' }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="login" options={{ headerShown: false }} />

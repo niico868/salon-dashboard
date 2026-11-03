@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { addDays, endOfMonth, format, isToday, startOfMonth } from 'date-fns';
+import { addDays, eachDayOfInterval, endOfMonth, format, isSameMonth, isToday, startOfMonth } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
@@ -17,7 +17,7 @@ import { Heading } from '../../components/Typography';
 import { haptic } from '../../lib/motion';
 import { TTD } from '../../lib/money';
 import { supabase } from '../../lib/supabase';
-import { colors, fonts, radius, shadow, space } from '../../lib/theme';
+import { colors, fonts, hours, radius, shadow, space } from '../../lib/theme';
 import type { AppointmentBalance } from '../../lib/types';
 
 const COLOR = { booked: colors.primary, completed: colors.success, cancelled: colors.neutral, no_show: colors.neutral } as const;
@@ -44,6 +44,10 @@ export default function CalendarTab() {
 
   const marked = useMemo(() => {
     const m: Record<string, any> = {};
+    // Closed days are greyed out, but can still be opened
+    for (const d of eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) })) {
+      if (!hours.days.includes(d.getDay())) m[format(d, 'yyyy-MM-dd')] = { dots: [], inactive: true };
+    }
     for (const a of appts) {
       const k = dayKey(a.starts_at);
       m[k] ??= { dots: [] };
@@ -51,7 +55,7 @@ export default function CalendarTab() {
     }
     m[selected] = { ...(m[selected] ?? { dots: [] }), selected: true, selectedColor: colors.primary };
     return m;
-  }, [appts, selected]);
+  }, [appts, selected, month]);
 
   const dayList = appts.filter((a) => dayKey(a.starts_at) === selected);
   const selectedDate = new Date(selected + 'T12:00');
@@ -63,7 +67,7 @@ export default function CalendarTab() {
     if (format(d, 'yyyy-MM') !== format(month, 'yyyy-MM')) setMonth(startOfMonth(d));
   }
 
-  const todayLink = !isToday(selectedDate) && (
+  const todayLink = (!isToday(selectedDate) || !isSameMonth(month, new Date())) && (
     <Pressable onPress={() => goToDay(new Date())} hitSlop={10} style={s.todayBtn} accessibilityRole="button">
       <Text style={s.todayText}>Today</Text>
     </Pressable>
@@ -111,9 +115,10 @@ export default function CalendarTab() {
                     calendarBackground: colors.surface,
                     todayTextColor: colors.primary, arrowColor: colors.primary,
                     selectedDayBackgroundColor: colors.primary, selectedDayTextColor: colors.textOnPrimary,
-                    dayTextColor: colors.text, textDisabledColor: '#C9BDBB', monthTextColor: colors.text,
+                    dayTextColor: colors.text, textDisabledColor: '#C9BDBB', textInactiveColor: '#B8ABA9', monthTextColor: colors.text,
+                    dotStyle: { width: 8, height: 8, borderRadius: 4 },
                     textSectionTitleColor: colors.textMuted,
-                    textDayFontFamily: fonts.body, textMonthFontFamily: fonts.heading, textDayHeaderFontFamily: fonts.bodyBold,
+                    textDayFontFamily: fonts.body, textMonthFontFamily: fonts.bodyBold, textDayHeaderFontFamily: fonts.bodyBold,
                     textDayFontSize: 17, textMonthFontSize: 20, textDayHeaderFontSize: 13,
                   }} />
               </View>
@@ -121,6 +126,7 @@ export default function CalendarTab() {
                 <Legend color={colors.primary} label="Booked" />
                 <Legend color={colors.success} label="Done" />
                 <Legend color={colors.neutral} label="Cancelled / no-show" />
+                <Legend color="#D9CFCD" label="Closed" />
               </View>
               {loadError && <LoadError onRetry={load} />}
               <View style={s.dayHead}>
@@ -134,7 +140,7 @@ export default function CalendarTab() {
               actionLabel="Book this day" onAction={() => router.push(`/appointment/new?date=${selected}`)} />
           )}
           renderItem={({ item: a }) => (
-            <ListRow title={a.client_name} subtitle={`${a.service_name} · ${TTD(Number(a.price))}`}
+            <ListRow title={a.client_name} subtitle={Number(a.price) > 0 ? `${a.service_name} · ${TTD(Number(a.price))}` : a.service_name}
               left={<TimeBadge date={new Date(a.starts_at)} />}
               right={<BookingChip a={a} />}
               accent={COLOR[a.status]}

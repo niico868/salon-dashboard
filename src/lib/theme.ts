@@ -70,13 +70,14 @@ export const fonts = {
 // Sizes are a little larger than usual so everything is easy to read at a glance
 export const type = {
   greeting: { fontFamily: fonts.script, fontSize: 40, lineHeight: 52, color: colors.gold },
-  title: { fontFamily: fonts.title, fontSize: 26, lineHeight: 32, color: colors.text },
-  heading: { fontFamily: fonts.heading, fontSize: 20, lineHeight: 26, color: colors.text },
+  title: { fontFamily: fonts.title, fontSize: 26, lineHeight: 32, color: colors.text, fontVariant: ['lining-nums'] as ('lining-nums')[] },
+  heading: { fontFamily: fonts.heading, fontSize: 20, lineHeight: 26, color: colors.text, fontVariant: ['lining-nums'] as ('lining-nums')[] },
   body: { fontFamily: fonts.body, fontSize: 17, lineHeight: 24, color: colors.text },
   bodyStrong: { fontFamily: fonts.bodyBold, fontSize: 17, lineHeight: 24, color: colors.text },
   label: { fontFamily: fonts.bodyMedium, fontSize: 15, lineHeight: 20, color: colors.textMuted },
   small: { fontFamily: fonts.body, fontSize: 14, lineHeight: 19, color: colors.textMuted },
-  number: { fontFamily: fonts.title, fontSize: 24, lineHeight: 30, color: colors.text },
+  // Lato, because Playfair's old-style numerals make 0.00 look like o.oo
+  number: { fontFamily: fonts.bodyBold, fontSize: 24, lineHeight: 30, color: colors.text },
 };
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 32 };
@@ -92,7 +93,7 @@ export const shadow = {
   },
 };
 
-export const motion = { fast: 150, normal: 260, stagger: 60, countUp: 700 };
+export const motion = { fast: 150, normal: 260, stagger: 60, countUp: 300 };
 
 export const brand = { name: 'Melt Aways', ownerName: 'Krystal' };
 

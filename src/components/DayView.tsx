@@ -5,7 +5,7 @@ import { colors, fonts, hours as salonHours, radius } from '../lib/theme';
 import type { AppointmentBalance } from '../lib/types';
 
 const OPEN_HOUR = salonHours.open, CLOSE_HOUR = salonHours.close;  // free time is only counted inside these
-const VIEW_FROM = 8, VIEW_TO = 19;      // the grid always shows at least these hours
+const VIEW_FROM = OPEN_HOUR, VIEW_TO = CLOSE_HOUR;  // the grid stretches if a booking falls outside these
 const OPEN_DAYS = salonHours.days;
 const HOUR_H = 72;                      // height of one hour in the grid
 const MIN_GAP = 30;                     // shorter free gaps are left unlabeled

@@ -39,6 +39,6 @@ const s = StyleSheet.create({
   card: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.lg, gap: space.xs, ...shadow.card },
   top: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   label: { fontFamily: fonts.bodyMedium, fontSize: 15, color: colors.textMuted, flexShrink: 1 },
-  value: { fontFamily: fonts.title, fontSize: 23, lineHeight: 30 },
+  value: { fontFamily: fonts.bodyBold, fontSize: 23, lineHeight: 30 },
   hint: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted },
 });

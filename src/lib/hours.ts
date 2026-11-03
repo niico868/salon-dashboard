@@ -34,3 +34,31 @@ export function nextOpenSlot(now: Date) {
   }
   return d;
 }
+
+// The next `count` days the spa is open, starting from `from` (today included).
+export function openDaysFrom(from: Date, count: number) {
+  const days: Date[] = [];
+  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  while (days.length < count) {
+    if (hours.days.includes(d.getDay())) days.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return days;
+}
+
+// Start times on `day` where a treatment of this length fits inside opening hours.
+export function slotsForDay(day: Date, durationMin: number, stepMin = 30) {
+  const slots: Date[] = [];
+  for (let m = hours.open * 60; m + Math.max(durationMin, stepMin) <= hours.close * 60; m += stepMin) {
+    slots.push(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, m));
+  }
+  return slots;
+}
+
+export type Busy = { start: Date; end: Date };
+
+// Does a treatment starting at `slot` run into an existing booking?
+export const slotIsTaken = (slot: Date, durationMin: number, busy: Busy[]) => {
+  const end = slot.getTime() + Math.max(durationMin, 1) * 60_000;
+  return busy.some((b) => b.start.getTime() < end && b.end.getTime() > slot.getTime());
+};

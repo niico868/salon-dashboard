@@ -21,8 +21,8 @@ export default function SectionHeader({ title, count, actionLabel, onAction }:
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
-  count: { minWidth: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: 'center',
+  count: { minWidth: 26, height: 26, borderRadius: 13, backgroundColor: colors.blush, alignItems: 'center',
     justifyContent: 'center', paddingHorizontal: 7 },
-  countText: { color: colors.textOnPrimary, fontFamily: fonts.bodyBold, fontSize: 14 },
+  countText: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: 14 },
   link: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: 16 },
 });

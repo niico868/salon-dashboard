@@ -15,7 +15,7 @@ export default function TimeBadge({ date, showDay }: { date: Date; showDay?: boo
 }
 
 const s = StyleSheet.create({
-  box: { width: 62, alignItems: 'center', paddingVertical: 4, borderRadius: 12, backgroundColor: colors.blush },
+  box: { width: 62, alignItems: 'center', paddingVertical: 4, borderRadius: 12, backgroundColor: colors.cream },
   day: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.primary, textTransform: 'uppercase' },
   time: { fontFamily: fonts.bodyBold, fontSize: 18, color: colors.text },
   ampm: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.textMuted },

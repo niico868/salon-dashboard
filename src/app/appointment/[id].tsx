@@ -1,20 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
-import { addMinutes, differenceInMinutes, format } from 'date-fns';
+import { addMinutes, differenceInMinutes, format, isPast } from 'date-fns';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Share, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Share, StyleSheet, View } from 'react-native';
 import ActionPill from '../../components/ActionPill';
 import { Text } from '../../components/AppText';
 import Avatar from '../../components/Avatar';
+import BookingChip from '../../components/BookingChip';
 import BookingEditor from '../../components/BookingEditor';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
-import DateTimeField from '../../components/DateTimeField';
 import LoadError from '../../components/LoadError';
 import OverflowMenu, { type MenuItem } from '../../components/OverflowMenu';
 import Screen from '../../components/Screen';
 import { SkeletonList } from '../../components/Skeleton';
 import StatusChip from '../../components/StatusChip';
+import TimeSlotPicker from '../../components/TimeSlotPicker';
 import { useToast } from '../../components/Toast';
 import { Body, Heading, Small } from '../../components/Typography';
 import { confirmBookingTime } from '../../lib/bookingChecks';
@@ -23,6 +24,7 @@ import { shareAppointmentInvoice } from '../../lib/invoice';
 import { haptic } from '../../lib/motion';
 import { TTD } from '../../lib/money';
 import { cancelAppointmentReminder, scheduleAppointmentReminder } from '../../lib/notifications';
+import { waLink } from '../../lib/phone';
 import { supabase } from '../../lib/supabase';
 import { colors, fonts, space } from '../../lib/theme';
 import type { AppointmentBalance, AppointmentStatus, Payment } from '../../lib/types';
@@ -41,6 +43,7 @@ export default function AppointmentDetail() {
   const [newStart, setNewStart] = useState<Date | null>(null);  // the time being chosen; nothing saves until Save new time
   const [savingTime, setSavingTime] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [phone, setPhone] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [ar, pr] = await Promise.all([
@@ -51,6 +54,8 @@ export default function AppointmentDetail() {
     setLoadError(false);
     setA(ar.data as AppointmentBalance);
     setPays((pr.data as Payment[]) ?? []);
+    const { data: client } = await supabase.from('clients').select('phone').eq('id', ar.data.client_id).maybeSingle();
+    setPhone(client?.phone ?? null);
   }, [id]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -106,7 +111,7 @@ export default function AppointmentDetail() {
     ...(a.status !== 'cancelled' ? [{ label: 'Edit booking', icon: 'create-outline' as const, onPress: () => setEditing(true) }] : []),
     ...(open ? [{ label: 'Change time', icon: 'swap-horizontal' as const, onPress: () => setNewStart(start) }] : []),
   ];
-  const chip = a.status === 'booked' ? <StatusChip status="booked" />
+  const chip = a.status === 'booked' ? <StatusChip status="booked" label={isPast(end) ? 'Needs closing' : undefined} />
     : a.status === 'completed' ? <StatusChip status="completed" />
     : <StatusChip status={a.status} />;
 
@@ -138,6 +143,8 @@ export default function AppointmentDetail() {
           </View>
         )}
         <View style={s.actions}>
+          {phone && <ActionPill label="Call" icon="call" onPress={() => Linking.openURL(`tel:${phone}`)} />}
+          {phone && <ActionPill label="WhatsApp" icon="logo-whatsapp" tone="whatsapp" onPress={() => Linking.openURL(waLink(phone))} />}
           <ActionPill label="View client" icon="person" onPress={() => router.push(`/client/${a.client_id}`)} />
           {open && <ActionPill label={newStart ? 'Keep current time' : 'Change time'} icon="swap-horizontal"
             onPress={() => setNewStart(newStart ? null : start)} />}
@@ -145,7 +152,7 @@ export default function AppointmentDetail() {
         {open && newStart && (
           <View style={{ gap: space.sm }}>
             <Small>Pick the new date and time, then tap Save new time.</Small>
-            <DateTimeField value={newStart} onChange={setNewStart} />
+            <TimeSlotPicker value={newStart} onChange={setNewStart} durationMin={differenceInMinutes(end, start)} excludeId={id} />
             {!!outsideHoursMessage(newStart, addMinutes(newStart, differenceInMinutes(end, start))) && (
               <Small style={s.warning}>{outsideHoursMessage(newStart, addMinutes(newStart, differenceInMinutes(end, start)))}</Small>
             )}
@@ -156,7 +163,7 @@ export default function AppointmentDetail() {
       </Card>
 
       <Card>
-        <Heading>Payment</Heading>
+        <View style={s.moneyRow}><Heading>Payment</Heading><BookingChip a={a} /></View>
         <View style={s.moneyRow}><Body>Price</Body><Body style={s.bold}>{noPrice ? 'Not set' : TTD(Number(a.price))}</Body></View>
         <View style={s.moneyRow}><Body>Paid so far</Body><Body style={[s.bold, { color: colors.success }]}>{TTD(Number(a.paid))}</Body></View>
         <View style={[s.moneyRow, s.balanceRow]}>
@@ -195,7 +202,7 @@ export default function AppointmentDetail() {
       {open ? (
         <Card>
           <Heading>How did it go?</Heading>
-          <Button title="Mark as done" icon="checkmark-circle" variant="success" size="lg" onPress={() => setStatus('completed')} />
+          <Button title="Mark as done" icon="checkmark-circle" variant={balance > 0 ? 'outline' : 'primary'} size="lg" onPress={() => setStatus('completed')} />
           <View style={s.twoUp}>
             <Button title="Didn't show up" icon="person-remove-outline" variant="outline" style={{ flex: 1 }}
               onPress={() => setStatus('no_show')} />
@@ -225,7 +232,7 @@ const s = StyleSheet.create({
   bold: { fontFamily: fonts.bodyBold },
   balanceRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: space.sm, marginTop: space.xs },
   balanceLabel: { fontFamily: fonts.bodyBold, fontSize: 18 },
-  balance: { fontFamily: fonts.title, fontSize: 24 },
+  balance: { fontFamily: fonts.bodyBold, fontSize: 24 },
   payment: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.sm, borderTopWidth: 1, borderTopColor: colors.border },
   twoUp: { flexDirection: 'row', gap: space.sm },
 });

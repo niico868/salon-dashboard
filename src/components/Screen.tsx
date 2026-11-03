@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View, ViewStyle } from 'react-native';
+import FadeInView from './FadeInView';
 import { colors, space } from '../lib/theme';
 
 // Page wrapper: warm background, comfortable padding, pull-down-to-refresh when `onRefresh` is given.
@@ -15,7 +16,7 @@ export default function Screen({ children, style, onRefresh, footer }: {
   return (
     <View style={styles.page}>
       <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh} keyboardShouldPersistTaps="handled">
-        <View style={[styles.inner, style]}>{children}</View>
+        <FadeInView style={[styles.inner, style]}>{children}</FadeInView>
       </ScrollView>
       {footer ? <View style={styles.footer}><View style={styles.footerInner}>{footer}</View></View> : null}
     </View>
