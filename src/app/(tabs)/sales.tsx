@@ -83,7 +83,7 @@ export default function SalesTab() {
       {loadError ? <LoadError onRetry={load} /> : (
         <>
           <View style={s.grid}>
-            <StatCard label="Money taken" icon="checkmark-circle" amount={data?.actual ?? 0} format={TTD} color={colors.success} index={0} />
+            <StatCard label="Money taken" icon="checkmark-circle" amount={data?.actual ?? 0} format={TTD} color={(data?.actual ?? 0) > 0 ? colors.success : colors.text} index={0} />
             <StatCard label="Still to collect" icon="time" amount={data?.potential ?? 0} format={TTD} index={1} />
             <StatCard label="Total expected" amount={data?.expected ?? 0} format={TTD} index={2} hint="Taken + still to collect" />
             <StatCard label="Bookings" value={String(data?.bookings ?? 0)} index={3} />

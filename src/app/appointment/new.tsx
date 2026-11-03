@@ -210,7 +210,7 @@ export default function BookAppointment() {
       </Step>
 
       <Step n={3} title="When?">
-        <TimeSlotPicker value={start} onChange={setStart} durationMin={service?.duration_min ?? 0} />
+        <TimeSlotPicker value={start} onChange={setStart} durationMin={service?.duration_min ?? 0} avoidTaken />
         {service && <Small>Ends at {format(addMinutes(start, service.duration_min), 'h:mm a')}</Small>}
         {!!closedWarning && <Small style={s.warning}>{closedWarning}</Small>}
       </Step>

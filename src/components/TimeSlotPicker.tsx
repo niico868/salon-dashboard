@@ -9,11 +9,12 @@ import { haptic } from '../lib/motion';
 import { supabase } from '../lib/supabase';
 import { colors, fonts, radius, space, touch } from '../lib/theme';
 
-type Props = { value: Date; onChange: (d: Date) => void; durationMin: number; excludeId?: string };
+// avoidTaken: move off a time that's already booked, so a new booking always starts on a free time.
+type Props = { value: Date; onChange: (d: Date) => void; durationMin: number; excludeId?: string; avoidTaken?: boolean };
 
 // Pick a time by tapping: the next open days, then the free times that day.
 // "Another date or time" opens the full picker for anything else.
-export default function TimeSlotPicker({ value, onChange, durationMin, excludeId }: Props) {
+export default function TimeSlotPicker({ value, onChange, durationMin, excludeId, avoidTaken }: Props) {
   const [custom, setCustom] = useState(false);
   const [busy, setBusy] = useState<Busy[]>([]);
   const dayKey = format(value, 'yyyy-MM-dd');
@@ -31,6 +32,13 @@ export default function TimeSlotPicker({ value, onChange, durationMin, excludeId
     });
     return () => { current = false; };
   }, [dayKey, excludeId]);
+
+  // Leaves a time typed into "Another date or time" alone, since that can be a deliberate overlap
+  useEffect(() => {
+    if (!avoidTaken || custom || !slotIsTaken(value, durationMin, busy)) return;
+    const free = slotsForDay(value, durationMin).find((t) => !slotIsTaken(t, durationMin, busy));
+    if (free) onChange(free);
+  }, [avoidTaken, custom, value, durationMin, busy, onChange]);
 
   const openDays = openDaysFrom(new Date(), 7);
   const days = openDays.some((d) => isSameDay(d, value)) ? openDays : [value, ...openDays];
