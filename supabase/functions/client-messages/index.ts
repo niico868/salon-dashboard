@@ -1,4 +1,4 @@
-// Automatic client emails: appointment reminders, aftercare, 1-week check-in, rebooking offers
+// Automatic client emails: appointment reminders, moved or cancelled notices, aftercare, 1-week check-in, rebooking offers
 // and birthday wishes. Runs every 15 minutes (see supabase/sql/client-messages.sql) and sends
 // through Resend. Setup steps: README.md in this folder.
 //
@@ -110,6 +110,19 @@ ${scope === 'offers' ? '<p style="font-size:13px;color:#60514F;margin-top:20px">
 }
 
 // ---------- Scheduled run ----------
+// Bookings cancelled in the last 2 days. Before booking-changes.sql has been run the column
+// doesn't exist yet: then there's nothing to send, and every other email carries on as normal.
+async function recentlyCancelled(now: Date): Promise<AppointmentRow[]> {
+  const { data, error } = await db.from('appointments')
+    .select('id, client_id, service_name, starts_at, created_at, status, completed_at, cancelled_at')
+    .eq('owner_id', OWNER_ID).eq('status', 'cancelled').gte('cancelled_at', new Date(now.getTime() - 2 * DAY).toISOString());
+  if (error) {
+    if (error.code === '42703') return [];
+    throw error;
+  }
+  return data as AppointmentRow[];
+}
+
 async function run(dryRun: boolean) {
   const now = new Date();
   const settings = await loadSettings();
@@ -127,11 +140,13 @@ async function run(dryRun: boolean) {
   for (const r of [clients, appts, sent]) if (r.error) throw r.error;
 
   // Later-booked visits matter for "has already rebooked", so also check every future booking
-  const upcoming = await db.from('appointments').select('id, client_id, service_name, starts_at, created_at, status, completed_at')
+  // `*` so the moved_at / moved_from columns come along once booking-changes.sql has been run (and nothing breaks before)
+  const upcoming = await db.from('appointments').select('*')
     .eq('owner_id', OWNER_ID).eq('status', 'booked').gt('starts_at', now.toISOString());
   if (upcoming.error) throw upcoming.error;
+  const cancelled = await recentlyCancelled(now);
   const clientRows = clients.data as (ClientRow & { unsubscribe_token: string })[];
-  const apptRows = [...appts.data, ...upcoming.data] as AppointmentRow[];
+  const apptRows = [...appts.data, ...upcoming.data, ...cancelled] as AppointmentRow[];
   const allAppts = new Map(apptRows.map((a) => [a.id, a]));
 
   const tokens = new Map(clientRows.map((c) => [c.id, c.unsubscribe_token]));
@@ -156,7 +171,7 @@ async function run(dryRun: boolean) {
     try {
       const id = await sendEmail(to, d.kind, {
         firstName: firstName(d.client.full_name), serviceName: d.appointment?.service_name,
-        startsAt: d.appointment?.starts_at, bookingUrl: BOOKING_URL, salonPhone: SALON_PHONE,
+        startsAt: d.appointment?.starts_at, movedFrom: d.appointment?.moved_from ?? undefined, bookingUrl: BOOKING_URL, salonPhone: SALON_PHONE,
         unsubscribeUrl: unsubscribeUrl(tokens.get(d.client.id) ?? '', d.kind),
       }, settings, d.key);
       await db.from('client_messages').update({ provider_id: id }).eq('id', claim.data.id);
@@ -172,13 +187,14 @@ async function run(dryRun: boolean) {
 }
 
 async function sendSamples(to: string) {
-  const kinds: Kind[] = ['reminder_2d', 'reminder_1d', 'aftercare', 'checkin_1w', 'rebook_1m', 'rebook_2m', 'birthday'];
+  const kinds: Kind[] = ['reminder_2d', 'reminder_1d', 'moved', 'cancelled', 'aftercare', 'checkin_1w', 'rebook_1m', 'rebook_2m', 'birthday'];
   const settings = await loadSettings();
   const results = [];
   for (const kind of kinds) {
     try {
       await sendEmail(to, kind, {
         firstName: 'Krystal', serviceName: 'Cavitation', startsAt: new Date(Date.now() + 2 * DAY).toISOString(),
+        movedFrom: new Date(Date.now() + DAY).toISOString(),
         bookingUrl: BOOKING_URL, salonPhone: SALON_PHONE,
         unsubscribeUrl: `${SELF_URL}?unsubscribe=00000000-0000-0000-0000-000000000000&scope=all`,
       }, settings);

@@ -2,7 +2,7 @@ export type Service = { id: string; name: string; category: string; price: numbe
 export type Client = { id: string; full_name: string; phone: string | null; email: string | null; birthday: string | null;
   preferences: string | null; notes: string | null; follow_up_date: string | null; follow_up_note: string | null;
   marketing_opt_in?: boolean; emails_off?: boolean };
-export type MessageKind = 'reminder_2d' | 'reminder_1d' | 'aftercare' | 'checkin_1w' | 'rebook_1m' | 'rebook_2m' | 'birthday';
+export type MessageKind = 'reminder_2d' | 'reminder_1d' | 'moved' | 'cancelled' | 'aftercare' | 'checkin_1w' | 'rebook_1m' | 'rebook_2m' | 'birthday';
 export type ClientMessage = { id: string; kind: MessageKind; channel: 'email' | 'whatsapp';
   status: 'sent' | 'failed' | 'test'; error: string | null; created_at: string };
 export type AppointmentStatus = 'booked' | 'completed' | 'cancelled' | 'no_show';

@@ -4,7 +4,7 @@ import { MARKETING, TIME_ZONE, type Kind } from './rules.ts';
 import { DEFAULT_SETTINGS, fillIn, wordingFor, type EmailSettings } from './wording.ts';
 
 export type EmailData = {
-  firstName: string; serviceName?: string; startsAt?: string;
+  firstName: string; serviceName?: string; startsAt?: string; movedFrom?: string;
   bookingUrl: string; unsubscribeUrl: string; salonPhone: string;
 };
 export type Email = { subject: string; html: string; text: string };
@@ -18,13 +18,14 @@ const when = (iso: string) => new Intl.DateTimeFormat('en-US', {
 type Block = { p: string } | { list: string[]; heading?: string } | { button: string };
 
 const BUTTONS: Partial<Record<Kind, string>> = {
-  rebook_1m: 'Book my next session', rebook_2m: 'Book a visit', birthday: 'Treat myself',
+  cancelled: 'Book a new time', rebook_1m: 'Book my next session', rebook_2m: 'Book a visit', birthday: 'Treat myself',
 };
 
 function content(kind: Kind, d: EmailData, settings: EmailSettings): { subject: string; blocks: Block[] } {
   const svc = d.serviceName ?? 'your treatment';
   const values = {
     name: d.firstName, treatment: svc, date: d.startsAt ? when(d.startsAt) : '',
+    old_date: d.movedFrom ? when(d.movedFrom) : 'the old time',
     discount: String(settings.birthday_discount),
   };
   const words = wordingFor(kind, settings.wording);

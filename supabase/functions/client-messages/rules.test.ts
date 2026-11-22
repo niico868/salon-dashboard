@@ -89,7 +89,7 @@ test('birthday key includes the year', () => {
 });
 
 test('every email renders with an unsubscribe link and safe text', () => {
-  for (const kind of ['reminder_2d', 'reminder_1d', 'aftercare', 'checkin_1w', 'rebook_1m', 'rebook_2m', 'birthday'] as const) {
+  for (const kind of ['reminder_2d', 'reminder_1d', 'moved', 'cancelled', 'aftercare', 'checkin_1w', 'rebook_1m', 'rebook_2m', 'birthday'] as const) {
     const e = renderEmail(kind, { firstName: '<Ana>', serviceName: 'Cavitation', startsAt: at(36 * H),
       bookingUrl: 'https://meltawaysspa.com/booking', unsubscribeUrl: 'https://x/unsub', salonPhone: '' });
     assert.ok(e.subject.length > 5, kind);
@@ -150,4 +150,37 @@ test('typos in fill-in words are caught', () => {
   assert.deepEqual(unknownPlaceholders('Hi {nme}, {name}', 'birthday'), ['nme']);
   assert.deepEqual(unknownPlaceholders('{discount}% for {name}', 'birthday'), []);
   assert.deepEqual(unknownPlaceholders('{discount}%', 'rebook_1m'), ['discount']);
+});
+
+test('cancelled: emailed after the hold, only for a visit still ahead', () => {
+  const cancelled = (o: Partial<AppointmentRow> = {}) => appt({ status: 'cancelled', starts_at: at(3 * D), cancelled_at: at(-15 * 60_000), ...o });
+  assert.deepEqual(kinds([client()], [cancelled()]), ['cancelled']);
+  assert.deepEqual(kinds([client()], [cancelled({ cancelled_at: at(-2 * 60_000) })]), [], 'waits 10 minutes in case it was a slip');
+  assert.deepEqual(kinds([client()], [cancelled({ starts_at: at(-5 * D), cancelled_at: at(-1 * H) })]), [], 'tidying up an old booking');
+  assert.deepEqual(kinds([client()], [cancelled({ cancelled_at: at(-3 * D) })]), [], 'too long ago');
+  assert.deepEqual(kinds([client()], [cancelled({ created_at: at(-20 * 60_000) })]), [], 'a booking made by mistake and cancelled straight away');
+  assert.deepEqual(kinds([client({ emails_off: true })], [cancelled()]), []);
+  assert.deepEqual(kinds([client()], [cancelled()], new Set(['cancelled:a1'])), []);
+  assert.deepEqual(dueMessages(NOW, [client()], [cancelled()], new Set(), new Set(['cancelled'])), [], 'switched off in the app');
+});
+
+test('moved: emailed after the hold, and reminders follow the new time', () => {
+  const moved = appt({ starts_at: at(20 * H), moved_at: at(-15 * 60_000), moved_from: at(10 * D) });
+  const due = dueMessages(NOW, [client()], [moved], new Set());
+  assert.deepEqual(due.map((d) => d.kind), ['moved'], 'no day-before reminder straight after the move email');
+  assert.equal(due[0].key, `moved:a1:${Date.parse(moved.moved_at!)}`);
+  assert.deepEqual(kinds([client()], [{ ...moved, moved_at: at(-60_000) }]), [], 'waits 10 minutes');
+  assert.deepEqual(kinds([client()], [{ ...moved, starts_at: at(-2 * H) }]), [], 'moved into the past');
+
+  // Moved a week ago to tomorrow: a fresh day-before reminder for the new time
+  const earlier = appt({ starts_at: at(20 * H), moved_at: at(-7 * D), moved_from: at(-1 * D) });
+  const [r] = dueMessages(NOW, [client()], [earlier], new Set(['reminder_1d:a1']));
+  assert.equal(r.kind, 'reminder_1d');
+  assert.equal(r.key, `reminder_1d:a1:${Date.parse(earlier.moved_at!)}`);
+});
+
+test('moved email names the old and new times', () => {
+  const e = renderEmail('moved', { ...sample, movedFrom: at(10 * D) });
+  assert.ok(e.text.includes('has moved from Friday, November 20'), e.text);
+  assert.ok(renderEmail('cancelled', sample).html.includes('Book a new time'));
 });
