@@ -1,0 +1,66 @@
+# Nightly copy of the Supabase database, locked with a password and kept for 30 days.
+# Setup and how to restore: docs/BACKUPS.md
+name: Database backup
+
+on:
+  schedule:
+    - cron: '0 7 * * *'   # every day at 7:00 UTC = 3:00 AM in Trinidad
+  workflow_dispatch:       # "Run workflow" button on the Actions tab, for a backup right now
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check the two secrets are set
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Add SUPABASE_DB_URL and BACKUP_PASSPHRASE under Settings -> Secrets and variables -> Actions (see docs/BACKUPS.md)"
+            exit 1
+          fi
+          if [ "${#BACKUP_PASSPHRASE}" -lt 16 ]; then
+            echo "::error::BACKUP_PASSPHRASE is too short. Use at least 16 characters."
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Copy the database
+        run: |
+          mkdir backup
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/roles.sql --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/data.sql --use-copy --data-only
+          # A backup without the main tables is not a backup: fail loudly instead of saving an empty file
+          for table in clients appointments; do
+            grep -q "COPY \"\?public\"\?\.\"\?$table\"\?" backup/data.sql || { echo "::error::No $table data in the backup"; exit 1; }
+          done
+          ls -l backup
+
+      - name: Lock it with the backup password
+        run: |
+          name="melt-aways-db-$(date -u +%Y-%m-%d)"
+          echo "NAME=$name" >> "$GITHUB_ENV"
+          tar -czf - backup | gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
+            --passphrase-file <(printf '%s' "$BACKUP_PASSPHRASE") -o "$name.tar.gz.gpg"
+          rm -rf backup
+          ls -l "$name.tar.gz.gpg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}.tar.gz.gpg
+          retention-days: 30
+          if-no-files-found: error

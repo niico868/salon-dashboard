@@ -12,6 +12,9 @@ export type ClientRow = {
 export type AppointmentRow = {
   id: string; client_id: string; service_name: string; starts_at: string; created_at: string;
   status: 'booked' | 'completed' | 'cancelled' | 'no_show'; completed_at: string | null;
+  // Set by the database when a booking is cancelled or moved (supabase/sql/booking-changes.sql).
+  // Missing until that SQL has been run, and then no change emails go out.
+  cancelled_at?: string | null; moved_at?: string | null; moved_from?: string | null;
 };
 export type Due = { kind: Kind; key: string; client: ClientRow; appointment?: AppointmentRow };
 
@@ -26,6 +29,9 @@ const HOUR = 3600_000;
 const DAY = 24 * HOUR;
 // Aftercare waits this long after Done, so the 5-second Undo in the app always beats the email.
 export const AFTERCARE_HOLD_MS = 60_000;
+// Moved and cancelled emails wait this long, so a slip of the finger can be put back before the client hears.
+// A change made within this time of creating the booking is treated as fixing a typo, and sends nothing.
+export const CHANGE_HOLD_MS = 10 * 60_000;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Salon-time calendar parts for an instant
@@ -50,6 +56,12 @@ export function isBirthdayToday(birthday: string | null, now: Date) {
   const t = salonParts(now);
   const day = m === 2 && d === 29 && !isLeap(t.year) ? 28 : d;
   return t.month === m && t.day === day;
+}
+
+// A move or cancellation is emailed after the hold, for up to 2 days (so one made after 8 PM goes next morning).
+function isChangeDue(changedAt: number, createdAt: string, now: number) {
+  const since = now - changedAt;
+  return since >= CHANGE_HOLD_MS && since <= 2 * DAY && changedAt - Date.parse(createdAt) >= CHANGE_HOLD_MS;
 }
 
 // `off`: emails Krystal switched off in the app (More -> Email marketing)
@@ -86,11 +98,28 @@ export function dueMessages(now: Date, clients: ClientRow[], appointments: Appoi
     if (a.status === 'booked') {
       const start = Date.parse(a.starts_at);
       const left = start - t;
-      const bookedAhead = start - Date.parse(a.created_at);
+      // A moved booking counts as booked when it was moved: the moved email already told them the new time.
+      const movedAt = a.moved_at ? Date.parse(a.moved_at) : null;
+      const bookedAhead = start - (movedAt ?? Date.parse(a.created_at));
+      // After a move, reminders are about the new time, so they get their own keys (and can go out again).
+      const tag = movedAt ? `${a.id}:${movedAt}` : a.id;
       // Two days out, only if they booked more than two days ahead (otherwise it repeats the booking email)
-      if (left > DAY && left <= 2 * DAY && bookedAhead > 2 * DAY) add('reminder_2d', `reminder_2d:${a.id}`, c, a);
+      if (left > DAY && left <= 2 * DAY && bookedAhead > 2 * DAY) add('reminder_2d', `reminder_2d:${tag}`, c, a);
       // The day before, only if they booked more than a day ahead
-      if (left > HOUR && left <= DAY && bookedAhead > DAY) add('reminder_1d', `reminder_1d:${a.id}`, c, a);
+      if (left > HOUR && left <= DAY && bookedAhead > DAY) add('reminder_1d', `reminder_1d:${tag}`, c, a);
+
+      // Moved: only for a visit still ahead, and not when the booking was just made (that's fixing a typo)
+      if (movedAt && a.moved_from && start > t && isChangeDue(movedAt, a.created_at, t)) {
+        add('moved', `moved:${a.id}:${movedAt}`, c, a);
+      }
+    }
+
+    // Cancelled: only for a visit that hadn't happened yet. Tidying up old bookings sends nothing.
+    if (a.status === 'cancelled' && a.cancelled_at) {
+      const cancelledAt = Date.parse(a.cancelled_at);
+      if (Date.parse(a.starts_at) > cancelledAt && isChangeDue(cancelledAt, a.created_at, t)) {
+        add('cancelled', `cancelled:${a.id}`, c, a);
+      }
     }
 
     if (a.status === 'completed' && a.completed_at) {

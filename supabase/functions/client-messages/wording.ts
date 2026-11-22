@@ -4,7 +4,7 @@
 //
 // Shared by the app and the email function, so keep this file free of imports.
 
-export type EmailKind = 'reminder_2d' | 'reminder_1d' | 'aftercare' | 'checkin_1w' | 'rebook_1m' | 'rebook_2m' | 'birthday';
+export type EmailKind = 'reminder_2d' | 'reminder_1d' | 'moved' | 'cancelled' | 'aftercare' | 'checkin_1w' | 'rebook_1m' | 'rebook_2m' | 'birthday';
 
 export type Wording = { subject: string; body: string };
 
@@ -31,6 +31,16 @@ export const DEFAULT_WORDING: Record<EmailKind, Wording> = {
     subject: 'Tomorrow: your {treatment} at Melt Aways',
     body: 'Hi {name}, we are looking forward to seeing you for your {treatment} on {date}.\n' +
       'Running late or need to reschedule? Reply to this email or call us.',
+  },
+  moved: {
+    subject: 'Your {treatment} has moved to {date}',
+    body: 'Hi {name}, your {treatment} has moved from {old_date} to {date}.\n' +
+      'If the new time does not suit you, just reply to this email or call us, and we will find a better slot.',
+  },
+  cancelled: {
+    subject: 'Your {treatment} on {date} is cancelled',
+    body: 'Hi {name}, your {treatment} on {date} has been cancelled.\n' +
+      'If this is a mistake, or you would like a new time, reply to this email or call us. We would love to see you soon.',
   },
   aftercare: {
     subject: 'Your aftercare for {treatment}',
@@ -63,6 +73,8 @@ export const DEFAULT_WORDING: Record<EmailKind, Wording> = {
 export const PLACEHOLDERS: Record<EmailKind, string[]> = {
   reminder_2d: ['name', 'treatment', 'date'],
   reminder_1d: ['name', 'treatment', 'date'],
+  moved: ['name', 'treatment', 'date', 'old_date'],
+  cancelled: ['name', 'treatment', 'date'],
   aftercare: ['name', 'treatment'],
   checkin_1w: ['name', 'treatment'],
   rebook_1m: ['name', 'treatment'],

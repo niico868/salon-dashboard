@@ -26,7 +26,8 @@ import { colors, fonts, radius, space } from '../../lib/theme';
 import type { AppointmentBalance, Client, ClientMessage, MessageKind } from '../../lib/types';
 
 const MESSAGE_LABEL: Record<MessageKind, string> = {
-  reminder_2d: 'Reminder (2 days before)', reminder_1d: 'Reminder (day before)', aftercare: 'Aftercare',
+  reminder_2d: 'Reminder (2 days before)', reminder_1d: 'Reminder (day before)', moved: 'Booking moved',
+  cancelled: 'Booking cancelled', aftercare: 'Aftercare',
   checkin_1w: '1-week check-in', rebook_1m: 'Rebooking offer (1 month)', rebook_2m: 'Rebooking offer (2 months)', birthday: 'Birthday wishes',
 };
 

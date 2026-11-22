@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 import { Text } from '../../components/AppText';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
+import ChangePassword from '../../components/ChangePassword';
 import Logo from '../../components/Logo';
 import PasscodePrompt from '../../components/PasscodePrompt';
 import PressableScale from '../../components/PressableScale';
@@ -47,6 +48,7 @@ function Row({ icon, label, hint, onPress, danger }: { icon: Icon; label: string
 export default function More() {
   const toast = useToast();
   const [changing, setChanging] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [push, setPush] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -93,6 +95,7 @@ export default function More() {
       </Card>
 
       <Row icon="key-outline" label="Change passcode" hint="The code that protects your prices" onPress={() => setChanging(true)} />
+      <Row icon="lock-closed-outline" label="Change password" hint="The password you log in with" onPress={() => setChangingPassword(true)} />
       <Row icon="log-out-outline" label="Log out" danger onPress={() => Alert.alert('Log out?', 'You will need your email and password to get back in.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Log out', style: 'destructive', onPress: async () => {
@@ -106,6 +109,9 @@ export default function More() {
         <Logo width={140} />
         <Small>Melt Aways Spa Dashboard</Small>
       </View>
+
+      <ChangePassword visible={changingPassword} onCancel={() => setChangingPassword(false)}
+        onDone={() => { setChangingPassword(false); toast.show('Password changed. Use the new one next time you log in.'); }} />
 
       <PasscodePrompt visible={changing} onCancel={() => setChanging(false)}
         onSuccess={async () => {

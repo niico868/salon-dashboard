@@ -25,6 +25,10 @@ const BEFORE: EmailInfo[] = [
   { kind: 'reminder_2d', label: '2-day reminder', when: '2 days before the appointment' },
   { kind: 'reminder_1d', label: 'Day-before reminder', when: 'The day before the appointment' },
 ];
+const CHANGES: EmailInfo[] = [
+  { kind: 'moved', label: 'Booking moved', when: 'About 10 minutes after you move a booking to a new time' },
+  { kind: 'cancelled', label: 'Booking cancelled', when: 'About 10 minutes after you cancel a booking' },
+];
 const AFTER: EmailInfo[] = [
   { kind: 'aftercare', label: 'Aftercare', when: 'Soon after you mark a visit Done' },
   { kind: 'checkin_1w', label: 'Check-in', when: '1 week after the visit' },
@@ -36,9 +40,9 @@ const OFFERS: EmailInfo[] = [
 ];
 
 const FILL_IN_HELP: Record<string, string> = {
-  name: 'their first name', treatment: 'the treatment', date: 'the appointment day and time', discount: 'the birthday discount',
+  name: 'their first name', treatment: 'the treatment', date: 'the appointment day and time', old_date: 'the time it moved from', discount: 'the birthday discount',
 };
-const SAMPLE = { name: 'Ana', treatment: 'Cavitation', date: 'Friday 14 November at 10:00 AM' };
+const SAMPLE = { name: 'Ana', treatment: 'Cavitation', date: 'Friday 14 November at 10:00 AM', old_date: 'Thursday 13 November at 2:00 PM' };
 
 type Form = {
   paused: boolean;
@@ -231,6 +235,10 @@ export default function EmailMarketing() {
       <Text style={s.section}>Before the visit</Text>
       <Small>Sent to every client with an email address, unless they unsubscribed.</Small>
       {BEFORE.map(row)}
+
+      <Text style={s.section}>If a booking changes</Text>
+      <Small>Sent when you move or cancel a visit that has not happened yet. Fixing a booking within 10 minutes of making it sends nothing.</Small>
+      {CHANGES.map(row)}
 
       <Text style={s.section}>After the visit</Text>
       <Small>Sent to every client with an email address, unless they unsubscribed.</Small>
