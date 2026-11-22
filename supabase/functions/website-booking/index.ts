@@ -2,8 +2,11 @@
 //
 //   GET  /website-booking                  -> { services }
 //   GET  /website-booking?date=2026-10-20  -> { services, busy: [{ starts_at, ends_at }] }  (no client details)
-//   POST /website-booking  { name, phone, email?, service_id, starts_at, notes?, birthday?, marketing_opt_in? }  -> 201 { id, ... }
-//   POST /website-booking  { type: 'enquiry', source, name, phone?, email?, message } -> 201 { ok: true }
+//   POST /website-booking  { name, phone, email, service_id, starts_at, notes?, birthday?, marketing_opt_in? }  -> 201 { id, ... }
+//   POST /website-booking  { type: 'enquiry', source, name, phone?, email, message } -> 201 { ok: true }
+//
+// Email is required on both, and every accepted booking or enquiry sends two emails (see emails.ts):
+// a confirmation to the client and an alert to the spa.
 //
 // The website never gets database keys. This function uses the server-side secret key,
 // validates everything, refuses double bookings and matches returning clients by phone.
@@ -21,7 +24,16 @@
 //   VAPID_PRIVATE_KEY        every phone that turned alerts on (More -> New booking alerts). Make the pair with
 //                            `npx web-push generate-vapid-keys`. Without them, bookings still work, just no alerts.
 //   VAPID_SUBJECT            contact for the push services, default mailto:meltawaystt@gmail.com
+//
+// Emails (the same secrets the automatic client emails use):
+//   RESEND_API_KEY           from resend.com -> API Keys. Without it, nothing is emailed and the log says so.
+//   MAIL_FROM                default "Melt Aways <hello@meltawaysspa.com>" (must be on the domain verified in Resend)
+//   REPLY_TO                 default meltawaystt@gmail.com (where the client's replies land)
+//   SPA_ALERT_EMAIL          who gets the new booking / request alerts, comma-separated. Default meltawaystt@gmail.com
+//   SALON_PHONE              shown in the client's confirmation
+//   TEST_RECIPIENT           while set, the client's confirmation goes to this address instead of the client
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { EMAIL_RE, sendSubmissionEmails, type MailSettings, type Submission } from './emails.ts';
 
 const OFFSET = Deno.env.get('SALON_UTC_OFFSET') ?? '-04:00';
 const MAX_DAYS_AHEAD = 120;
@@ -75,6 +87,18 @@ async function alertOwner(msg: { title: string; body: string; url: string; tag: 
   }
 }
 
+// ---------- Emails ----------
+const envStr = (k: string, fallback = '') => (Deno.env.get(k) ?? '').trim() || fallback;
+const RESEND_API_KEY = envStr('RESEND_API_KEY');
+const MAIL: MailSettings = {
+  from: envStr('MAIL_FROM', 'Melt Aways <hello@meltawaysspa.com>'),
+  replyTo: envStr('REPLY_TO', 'meltawaystt@gmail.com'),
+  spaTo: envStr('SPA_ALERT_EMAIL', 'meltawaystt@gmail.com').split(',').map((s) => s.trim()).filter((s) => EMAIL_RE.test(s)),
+  salonPhone: envStr('SALON_PHONE'),
+  testRecipient: envStr('TEST_RECIPIENT'),
+};
+const emailAbout = (s: Submission) => sendSubmissionEmails(RESEND_API_KEY, s, MAIL);
+
 // Send alerts after replying when the platform allows it, so the customer isn't kept waiting
 function inBackground(p: Promise<unknown>) {
   const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
@@ -97,7 +121,7 @@ function cors(req: Request) {
 // Same rule as the app's WhatsApp links, so "868-555-1234" and "+1 868 555 1234" match
 const normPhone = (p: string) => { const d = p.replace(/\D/g, ''); return d.length === 7 ? '1868' + d : d.length === 10 ? '1' + d : d; };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL = EMAIL_RE;
 const SOURCES = ['contact', 'consultation', 'treatment-finder', 'visit'];
 const SOURCE_LABEL: Record<string, string> = {
   contact: 'Contact form', consultation: 'Consultation', 'treatment-finder': 'Treatment finder', visit: 'Visiting', other: 'Website',
@@ -166,8 +190,7 @@ Deno.serve(async (req) => {
       const problems = [
         (name.length < 2 || name.length > 100) && 'name',
         phone && !/^\d{7,15}$/.test(phone.replace(/\D/g, '')) && 'phone',
-        email && (!EMAIL.test(email) || email.length > 200) && 'email',
-        !phone && !email && 'phone or email',
+        (!EMAIL.test(email) || email.length > 200) && 'email',
         message.length > 2000 && 'message',
       ].filter(Boolean);
       if (problems.length) return reply(400, { error: `Please check: ${problems.join(', ')}` });
@@ -180,11 +203,14 @@ Deno.serve(async (req) => {
       }).select('id').single();
       if (saved.error) throw saved.error;
 
-      await inBackground(alertOwner({
-        title: `New enquiry: ${name}`,
-        body: `${SOURCE_LABEL[source]}${message ? `: ${message.slice(0, 140)}` : ''}`,
-        url: '/', tag: `enq-${saved.data.id}`,
-      }));
+      await inBackground(Promise.all([
+        alertOwner({
+          title: `New enquiry: ${name}`,
+          body: `${SOURCE_LABEL[source]}${message ? `: ${message.slice(0, 140)}` : ''}`,
+          url: '/', tag: `enq-${saved.data.id}`,
+        }),
+        emailAbout({ kind: 'enquiry', name, email, phone, source, message }),
+      ]));
       return reply(201, { ok: true });
     }
 
@@ -196,7 +222,7 @@ Deno.serve(async (req) => {
     const problems = [
       (name.length < 2 || name.length > 100) && 'name',
       !/^\d{7,15}$/.test(phone.replace(/\D/g, '')) && 'phone',
-      email && (!EMAIL.test(email) || email.length > 200) && 'email',
+      (!EMAIL.test(email) || email.length > 200) && 'email',
       !UUID.test(String(b.service_id ?? '')) && 'service_id',
       isNaN(start.getTime()) && 'starts_at',
       notes.length > 500 && 'notes',
@@ -241,11 +267,14 @@ Deno.serve(async (req) => {
     }).select('id, starts_at, ends_at, service_name, price').single();
     if (appt.error) throw appt.error;
 
-    await inBackground(alertOwner({
-      title: `New booking: ${name}`,
-      body: `${svc.data.name} · ${salonTime(start)}`,
-      url: `/appointment/${appt.data.id}`, tag: `appt-${appt.data.id}`,
-    }));
+    await inBackground(Promise.all([
+      alertOwner({
+        title: `New booking: ${name}`,
+        body: `${svc.data.name} · ${salonTime(start)}`,
+        url: `/appointment/${appt.data.id}`, tag: `appt-${appt.data.id}`,
+      }),
+      emailAbout({ kind: 'booking', name, email, phone, service: svc.data.name, startsAt: appt.data.starts_at, notes }),
+    ]));
     return reply(201, appt.data);
   } catch (e) {
     console.error(e);
